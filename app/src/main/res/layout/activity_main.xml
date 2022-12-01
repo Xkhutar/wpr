@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#404040"
+    android:visibility="visible"
+    tools:context=".MainActivity">
+
+    <Button
+        android:id="@+id/toggle"
+        android:layout_width="115dp"
+        android:layout_height="91dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="16dp"
+        android:backgroundTint="#24730E"
+        android:text="Toggle Hands Free"
+        app:cornerRadius="20dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/channelID" />
+
+    <Button
+        android:id="@+id/change_channel"
+        android:layout_width="115dp"
+        android:layout_height="91dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="12dp"
+        android:backgroundTint="#24730E"
+        android:text="Change Channel"
+        app:cornerRadius="20dp"
+        app:iconTint="#5E5B5B"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/channelID" />
+
+    <Button
+        android:id="@+id/join_channel"
+        android:layout_width="200dp"
+        android:layout_height="200dp"
+        android:layout_marginStart="104dp"
+        android:layout_marginTop="160dp"
+        android:backgroundTint="#AC2929"
+        android:text="Push to Talk"
+        android:textSize="20dp"
+        app:cornerRadius="100dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/change_channel" />
+
+    <EditText
+        android:id="@+id/banner"
+        android:layout_width="309dp"
+        android:layout_height="37dp"
+        android:layout_marginTop="7dp"
+        android:background="@android:drawable/editbox_background"
+        android:backgroundTint="#000000"
+        android:ems="10"
+        android:gravity="center"
+        android:inputType="textPersonName"
+        android:text="Wireless Phone Radio"
+        android:textColor="#FFFFFF"
+        android:textSize="25dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <EditText
+        android:id="@+id/channelID"
+        android:layout_width="410dp"
+        android:layout_height="82dp"
+        android:background="@android:drawable/editbox_background"
+        android:backgroundTint="#000000"
+        android:ems="10"
+        android:gravity="center"
+        android:inputType="textPersonName"
+        android:minHeight="48dp"
+        android:text="Channel ID XXXXX"
+        android:textColor="#FFFFFF"
+        android:textSize="35dp"
+        android:visibility="visible"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/banner" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
