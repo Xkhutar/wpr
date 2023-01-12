@@ -1,13 +1,27 @@
 package com.example.bprac
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.media.MediaRecorder
+import android.media.MediaPlayer
+import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.os.Environment
 import android.widget.Button
 import android.widget.Toast
+import androidx.annotation.RequiresApi
+import androidx.core.app.ActivityCompat
 
 class MainActivity : AppCompatActivity() {
+    private lateinit var mediaRecorder: MediaRecorder
+    private lateinit var playback: MediaPlayer
+    val RECORDER_SAMPLE_RATE = 44100
+
+    @RequiresApi(Build.VERSION_CODES.S)
+
     @SuppressLint("MissingInflatedId")
     @Override
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -16,7 +30,7 @@ class MainActivity : AppCompatActivity() {
 
         val path:String = Environment.getExternalStorageDirectory().absolutePath + "/recording.3gp"
 
-        if(ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED) {
+        if(ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)!= PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(
                 this,
                 arrayOf(
@@ -28,8 +42,8 @@ class MainActivity : AppCompatActivity() {
             )
 
         }
-        val isRecording = false
-        val isPlaying = false
+        var isRecording = false
+        var isPlaying = false
 
         val pushToTalk = findViewById<Button>(R.id.push_to_talk)
         pushToTalk.setOnClickListener {
@@ -91,7 +105,8 @@ class MainActivity : AppCompatActivity() {
         {
             super.onRequestPermissionsResult(requestCode, permissions, grantResults)
             if(requestCode==111 && grantResults[0] == PackageManager.PERMISSION_GRANTED){
-                binding.button1.isEnabled = true
+                //binding.button1.isEnabled = true
+                Toast.makeText(this, "permissions granted", Toast.LENGTH_SHORT).show()
         }
     }
 
