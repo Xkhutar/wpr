@@ -49,7 +49,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-       fun stopRecording(){ //tutorial has these as private, but it doesn't like that, so removing that : "'private' not applicable to local function"
+        fun stopRecording(){ //tutorial has these as private, but it doesn't like that, so removing that : "'private' not applicable to local function"
             if(state){
                 mediaRecorder?.stop()
                 mediaRecorder?.release()
@@ -63,14 +63,14 @@ class MainActivity : AppCompatActivity() {
         val pushToTalk = findViewById<Button>(R.id.push_to_talk)
         pushToTalk.setOnClickListener {
             //Toast.makeText(this, "Transmitting (TBC)", Toast.LENGTH_SHORT).show()
-                if (ContextCompat.checkSelfPermission(this,
-                        Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED && ContextCompat.checkSelfPermission(this,
-                        Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                    val permissions = arrayOf(android.Manifest.permission.RECORD_AUDIO, android.Manifest.permission.WRITE_EXTERNAL_STORAGE, android.Manifest.permission.READ_EXTERNAL_STORAGE)
-                    ActivityCompat.requestPermissions(this, permissions,0)
-                } else {
-                    startRecording()
-                }
+            if (ContextCompat.checkSelfPermission(this,
+                    Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED && ContextCompat.checkSelfPermission(this,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                val permissions = arrayOf(android.Manifest.permission.RECORD_AUDIO, android.Manifest.permission.WRITE_EXTERNAL_STORAGE, android.Manifest.permission.READ_EXTERNAL_STORAGE)
+                ActivityCompat.requestPermissions(this, permissions,0)
+            } else {
+                startRecording()
+            }
 
         }
 
@@ -87,4 +87,6 @@ class MainActivity : AppCompatActivity() {
         }
 
     }
+}
+
 }
