@@ -16,7 +16,7 @@ class AppStart : AppCompatActivity() {
             startActivity(intent)
         }
 
-        val joinChannel = findViewById<Button>(R.id.join_channel)
+        val joinChannel = findViewById<Button>(R.id.push_to_talk)
         joinChannel.setOnClickListener {
             val intent = Intent(this,ChannelSelectActivity::class.java)
             startActivity(intent)

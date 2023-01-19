@@ -21,13 +21,13 @@
         android:text="Create Channel"
         android:textSize="25dp"
         app:cornerRadius="100dp"
-        app:layout_constraintBottom_toTopOf="@+id/join_channel"
+        app:layout_constraintBottom_toTopOf="@+id/push_to_talk"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/banner" />
 
     <Button
-        android:id="@+id/join_channel"
+        android:id="@+id/push_to_talk"
         android:layout_width="200dp"
         android:layout_height="200dp"
         android:layout_gravity="center_horizontal"

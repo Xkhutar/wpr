@@ -34,7 +34,7 @@
         app:layout_constraintTop_toBottomOf="@+id/channelID" />
 
     <Button
-        android:id="@+id/join_channel"
+        android:id="@+id/push_to_talk"
         android:layout_width="200dp"
         android:layout_height="200dp"
         android:layout_gravity="center_horizontal"
