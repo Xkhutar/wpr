@@ -1,8 +1,6 @@
 //note: this version uses the toggle button to stop audio recording, and the change channel button to play it back.
-// app will crash when record is pushed again. Went back to older (just recording) version and bug existed there too, odd I didn't catch it before.
-// eventually the bytes will be sent out and not saved locally so perhaps this bug doesn't need to be fixed
-// if you comment out the release() of mediarecorder in the stopRecording, it will eliminate the crash, but the recording functionality will still be broken post-stop
-
+// works on sumners phone, but not rory's... first it wouldn't boot, some setAudioSource error, enabling permissions manually in settings got it to boot
+// removing manual permissions and including that commented code block in onCreate makes it ask for permissions, but it still wont record.
 package com.example.bprac
 
 import android.Manifest
@@ -36,6 +34,23 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+
+        // leaving this in to try to get Rory phone to work, currently the recording isn't working for him (setAudioSource issue)
+        if(ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(
+                    Manifest.permission.RECORD_AUDIO,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                    Manifest.permission.READ_EXTERNAL_STORAGE,
+                ),
+                111
+            )
+
+        }
+        // did some manual permission enabling, which enabled it to boot, but its recording function isn't working
+
+
         mediaRecorder = MediaRecorder() //depreciated, using anyways for now
         output = Environment.getExternalStorageDirectory().absolutePath + "/recording.mp3"  //path to the root of our external storage and add our recording name and filetype to it
 
@@ -45,7 +60,17 @@ class MainActivity : AppCompatActivity() {
         mediaRecorder?.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)    //correct encoder?
         mediaRecorder?.setOutputFile(output)
 
+
+
         fun playRecording(uri: Uri) {
+            mediaRecorder = MediaRecorder() //depreciated, using anyways for now
+        output = Environment.getExternalStorageDirectory().absolutePath + "/recording.mp3"  //path to the root of our external storage and add our recording name and filetype to it
+
+
+        mediaRecorder?.setAudioSource(MediaRecorder.AudioSource.MIC)
+        mediaRecorder?.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4) //correct format?
+        mediaRecorder?.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)    //correct encoder?
+        mediaRecorder?.setOutputFile(output)
             var mMediaPlayer: MediaPlayer? = null
             try {
                 mMediaPlayer = MediaPlayer().apply {
@@ -79,11 +104,14 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        fun stopRecording(){ //tutorial has these as private, but it doesn't like that, so removing that : "'private' not applicable to local function"
+        fun stopRecording(){
             if(state){
                 mediaRecorder?.stop()
+                mediaRecorder?.reset()
                 mediaRecorder?.release()
+                mediaRecorder = null
                 state = false
+                Toast.makeText(this, "stopping recording", Toast.LENGTH_SHORT).show()
             }else{
                 Toast.makeText(this, "You are not recording right now!", Toast.LENGTH_SHORT).show()
             }
@@ -92,7 +120,6 @@ class MainActivity : AppCompatActivity() {
 
         val pushToTalk = findViewById<Button>(R.id.push_to_talk)
         pushToTalk.setOnClickListener {
-            //Toast.makeText(this, "Transmitting (TBC)", Toast.LENGTH_SHORT).show()
             if (ContextCompat.checkSelfPermission(this,
                     Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED && ContextCompat.checkSelfPermission(this,
                     Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
@@ -107,13 +134,16 @@ class MainActivity : AppCompatActivity() {
         val toggle = findViewById<Button>(R.id.toggle)
         toggle.setOnClickListener {
             //Toast.makeText(this, "Toggling audio input mode (TBC)", Toast.LENGTH_SHORT).show()
+            //Temporarily using this as a stop recording button
             stopRecording()
         }
 
         val changeChannel = findViewById<Button>(R.id.change_channel)
         changeChannel.setOnClickListener {
-            //val intent = Intent(this,AppStart::class.java)   //these two lines are the correct function, but temporarily using this as the playback button
+            //val intent = Intent(this,AppStart::class.java)
             // startActivity(intent)
+            //these two lines are the correct function, but temporarily using this as the playback button
+
             val file = File(Environment.getExternalStorageDirectory(), "recording.mp3")
             val uri = Uri.fromFile(file)
             playRecording(uri)
