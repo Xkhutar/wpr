@@ -7,11 +7,16 @@ package com.example.bprac
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.net.Uri
+import android.net.wifi.p2p.WifiP2pDevice
+import android.net.wifi.p2p.WifiP2pManager
 import android.os.Bundle
 import android.os.Environment
 import android.widget.Button
@@ -30,8 +35,12 @@ class MainActivity : AppCompatActivity() {
     private var recordingStopped: Boolean = false
     var mMediaPlayer: MediaPlayer? = null //private?
 
+    private val intentFilter = IntentFilter()
+    private lateinit var channel: WifiP2pManager.Channel
+    private lateinit var manager: WifiP2pManager
+
     @SuppressLint("MissingInflatedId") //cant remember what this is
-    @Override //not sure why i needed this either
+    @Override //not sure why i needed this either | its an android thing we need - RS
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -44,6 +53,18 @@ class MainActivity : AppCompatActivity() {
         mediaRecorder?.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4) //correct format?
         mediaRecorder?.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)    //correct encoder?
         mediaRecorder?.setOutputFile(output)
+
+        //indicates change in Wifi Direct Status
+        intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION)
+
+        //indicates change in the list of available peers
+        intentFilter.addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION)
+
+        //indicates the state of Wifi direct connectivity has changed
+        intentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)
+
+        //indicates this device's details have changed
+        intentFilter.addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION)
 
         fun playRecording(uri: Uri) {
             var mMediaPlayer: MediaPlayer? = null
@@ -119,5 +140,43 @@ class MainActivity : AppCompatActivity() {
             playRecording(uri)
         }
 
+        //according to the docs this needs to be at the end of onCreate()
+        manager = getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
+        channel = manager.initialize(this, mainLooper, null)
     }
+
+    override fun onReceive(context: Context, intent: Intent){
+        when(intent.action){
+            WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION -> {
+                //determine if Wifi direct is enabled.
+                val state =  intent.getIntExtra(WifiP2pManager.EXTRA_WIFI_STATE, -1)
+                activity.isWifiP2pEnabled = state == WifiP2pManager.WIFI_P2P_STATE_ENABLED
+            }
+            WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION -> {
+                //The peer list changed, do something about it
+            }
+            WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION -> {
+                //The connection changed, we should do something about it
+            }
+            WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION ->{
+                (activity.supportFragmentManager.findFragmentByID(R.id.frag_list) as DeviceListFragment).apply{
+                    updateThisDevice(
+                        intent.getParcelableExtra( WifiP2pManager.EXTRA_WIFI_P2P_DEVICE) as WifiP2pDevice
+                    )
+                }
+            }
+        }
+    }
+    /* Register the receivers when active and unregister them when inactive */
+    public override fun onResume() {
+        super.onResume()
+        receiver = WiFiDirectBroadcastReceiver(manager, channel, this)
+        registerReceiver(reciver, intentFilter)
+    }
+
+    public override fun onPause() {
+        super.onPause()
+        unregisterReceiver(receiver)
+    }
+
 }
