@@ -5,11 +5,13 @@ package com.example.bprac
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.ContextWrapper
 import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.widget.Button
@@ -50,27 +52,39 @@ class MainActivity : AppCompatActivity() {
         }
         // did some manual permission enabling, which enabled it to boot, but its recording function isn't working
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            mediaRecorder = MediaRecorder(this)
+        }
+        else {
+            mediaRecorder = MediaRecorder()//depreciated, using anyways for now
+        }
 
-        mediaRecorder = MediaRecorder() //depreciated, using anyways for now
-        output = Environment.getExternalStorageDirectory().absolutePath + "/recording.mp3"  //path to the root of our external storage and add our recording name and filetype to it
+        val path = getExternalFilesDir(Environment.getExternalStorageDirectory().absolutePath)?.absolutePath + "/recording.mp3"
 
+        output = path
 
-        mediaRecorder?.setAudioSource(MediaRecorder.AudioSource.MIC)
+        mediaRecorder?.setAudioSource(MediaRecorder.AudioSource.DEFAULT)
         mediaRecorder?.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4) //correct format?
         mediaRecorder?.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)    //correct encoder?
         mediaRecorder?.setOutputFile(output)
 
-
-
+        
         fun playRecording(uri: Uri) {
-            mediaRecorder = MediaRecorder() //depreciated, using anyways for now
-        output = Environment.getExternalStorageDirectory().absolutePath + "/recording.mp3"  //path to the root of our external storage and add our recording name and filetype to it
 
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                mediaRecorder = MediaRecorder(this)
+            }
+            else {
+                mediaRecorder = MediaRecorder()//depreciated, using anyways for now
+            }
 
-        mediaRecorder?.setAudioSource(MediaRecorder.AudioSource.MIC)
+        output = path
+
+        mediaRecorder?.setAudioSource(MediaRecorder.AudioSource.DEFAULT)
         mediaRecorder?.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4) //correct format?
         mediaRecorder?.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)    //correct encoder?
         mediaRecorder?.setOutputFile(output)
+
             var mMediaPlayer: MediaPlayer? = null
             try {
                 mMediaPlayer = MediaPlayer().apply {
@@ -144,10 +158,12 @@ class MainActivity : AppCompatActivity() {
             // startActivity(intent)
             //these two lines are the correct function, but temporarily using this as the playback button
 
-            val file = File(Environment.getExternalStorageDirectory(), "recording.mp3")
+            //val file = File(Environment.getExternalStorageDirectory(), "recording.mp3")
+            val file = File(path) //File(getFilesDir().toString() + "/recording.mp3")
             val uri = Uri.fromFile(file)
             playRecording(uri)
         }
 
     }
+
 }
