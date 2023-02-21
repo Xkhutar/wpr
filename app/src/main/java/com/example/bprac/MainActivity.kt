@@ -1,6 +1,5 @@
 //note: this version uses the toggle button to stop audio recording, and the change channel button to play it back.
-// works on sumners phone, but not rory's... first it wouldn't boot, some setAudioSource error, enabling permissions manually in settings got it to boot
-// removing manual permissions and including that commented code block in onCreate makes it ask for permissions, but it still wont record.
+
 package com.example.bprac
 
 import android.Manifest
@@ -68,7 +67,7 @@ class MainActivity : AppCompatActivity() {
         mediaRecorder?.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)    //correct encoder?
         mediaRecorder?.setOutputFile(output)
 
-        
+
         fun playRecording(uri: Uri) {
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
