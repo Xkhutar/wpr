@@ -22,7 +22,9 @@ import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import androidx.core.app.ActivityCompat
 
+import com.example.bprac.WifiDirectBroadcastReceiver
 import com.example.bprac.DeviceListFragment.DeviceActionListener
 
 class WifiDirectAction : Activity(), ChannelListener, DeviceActionListener {
@@ -112,7 +114,7 @@ class WifiDirectAction : Activity(), ChannelListener, DeviceActionListener {
     /** register the BroadcastReceiver with the intent values to be matched  */
     public override fun onResume() {
         super.onResume()
-        receiver = WifiDirectBroadcastReceiver(manager, channel, this)
+        receiver = WifiDirectBroadcastReceiver() //manager, channel, this  -- these are supposed to be parameters for broadcast receiver.
         registerReceiver(receiver, intentFilter)
     }
 
@@ -164,7 +166,7 @@ class WifiDirectAction : Activity(), ChannelListener, DeviceActionListener {
             R.id.atn_direct_discover -> {
                 if (!isWifiP2pEnabled) {
                     Toast.makeText(
-                        this@WiFiDirectActivity, R.string.p2p_off_warning,
+                        this@WifiDirectAction, R.string.p2p_off_warning,
                         Toast.LENGTH_SHORT
                     ).show()
                     return true
@@ -172,17 +174,34 @@ class WifiDirectAction : Activity(), ChannelListener, DeviceActionListener {
                 val fragment: DeviceListFragment = fragmentManager
                     .findFragmentById(R.id.frag_list) as DeviceListFragment
                 fragment.onInitiateDiscovery()
+
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                    // TODO: Consider calling
+                    //    ActivityCompat#requestPermissions
+                    // here to request the missing permissions, and then overriding
+                    //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+                    //                                          int[] grantResults)
+                    // to handle the case where the user grants the permission. See the documentation
+                    // for ActivityCompat#requestPermissions for more details.
+                    ActivityCompat.requestPermissions(
+                        this,
+                        arrayOf(
+                            Manifest.permission.ACCESS_FINE_LOCATION
+                        ),
+                        1001
+                    )
+                }
                 manager!!.discoverPeers(channel, object : WifiP2pManager.ActionListener {
                     override fun onSuccess() {
                         Toast.makeText(
-                            this@WiFiDirectActivity, "Discovery Initiated",
+                            this@WifiDirectAction, "Discovery Initiated",
                             Toast.LENGTH_SHORT
                         ).show()
                     }
 
                     override fun onFailure(reasonCode: Int) {
                         Toast.makeText(
-                            this@WiFiDirectActivity, "Discovery Failed : $reasonCode",
+                            this@WifiDirectAction, "Discovery Failed : $reasonCode",
                             Toast.LENGTH_SHORT
                         ).show()
                     }
@@ -193,13 +212,26 @@ class WifiDirectAction : Activity(), ChannelListener, DeviceActionListener {
         }
     }
 
-    fun showDetails(device: WifiP2pDevice?) {
+    override fun showDetails(device: WifiP2pDevice?) {
         val fragment: DeviceDetailFragment = fragmentManager
             .findFragmentById(R.id.frag_detail) as DeviceDetailFragment
         fragment.showDetails(device)
     }
 
-    fun connect(config: WifiP2pConfig?) {
+    override fun connect(config: WifiP2pConfig?) {
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ),
+                1001
+            )
+        }
         manager!!.connect(channel, config, object : WifiP2pManager.ActionListener {
             override fun onSuccess() {
                 // WiFiDirectBroadcastReceiver will notify us. Ignore for now.
@@ -207,14 +239,14 @@ class WifiDirectAction : Activity(), ChannelListener, DeviceActionListener {
 
             override fun onFailure(reason: Int) {
                 Toast.makeText(
-                    this@WiFiDirectActivity, "Connect failed. Retry.",
+                    this@WifiDirectAction, "Connect failed. Retry.",
                     Toast.LENGTH_SHORT
                 ).show()
             }
         })
     }
 
-    fun disconnect() {
+    override fun disconnect() {
         val fragment: DeviceDetailFragment = fragmentManager
             .findFragmentById(R.id.frag_detail) as DeviceDetailFragment
         fragment.resetViews()
@@ -264,7 +296,7 @@ class WifiDirectAction : Activity(), ChannelListener, DeviceActionListener {
                 manager!!.cancelConnect(channel, object : WifiP2pManager.ActionListener {
                     override fun onSuccess() {
                         Toast.makeText(
-                            this@WiFiDirectActivity, "Aborting connection",
+                            this@WifiDirectAction, "Aborting connection",
                             Toast.LENGTH_SHORT
                         ).show()
                     }

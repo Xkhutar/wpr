@@ -14,7 +14,7 @@ import android.util.Log
 class WifiDirectBroadcastReceiver : BroadcastReceiver() {
     private var manager: WifiP2pManager? = null
     private var channel: WifiP2pManager.Channel? = null
-    private var activity: WifiDirectActivity? = null
+    private var activity: WifiDirectAction? = null
 
     /**
      * @param manager WifiP2pManager system service
@@ -23,9 +23,8 @@ class WifiDirectBroadcastReceiver : BroadcastReceiver() {
      */
     fun WiFiDirectBroadcastReceiver(
         manager: WifiP2pManager?, channel: WifiP2pManager.Channel?,
-        activity: WifiDirectActivity?
-    ) {
-        super()
+        activity: WifiDirectAction?) {
+        //super()
         this.manager = manager
         this.channel = channel
         this.activity = activity
@@ -42,12 +41,12 @@ class WifiDirectBroadcastReceiver : BroadcastReceiver() {
             val state = intent.getIntExtra(WifiP2pManager.EXTRA_WIFI_STATE, -1)
             if (state == WifiP2pManager.WIFI_P2P_STATE_ENABLED) {
                 // Wifi Direct mode is enabled
-                activity.setIsWifiP2pEnabled(true)
+                activity?.setIsWifiP2pEnabled(true)
             } else {
-                activity.setIsWifiP2pEnabled(false)
-                activity.resetData()
+                activity?.setIsWifiP2pEnabled(false)
+                activity?.resetData()
             }
-            Log.d(WiFiDirectActivity.TAG, "P2P state changed - $state")
+            Log.d(WifiDirectAction.TAG, "P2P state changed - $state")
         } else if (WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION == action) {
             // request available peers from the wifi p2p manager. This is an
             // asynchronous call and the calling activity is notified with a
@@ -58,7 +57,7 @@ class WifiDirectBroadcastReceiver : BroadcastReceiver() {
                         .findFragmentById(R.id.frag_list) as PeerListListener
                 )
             }
-            Log.d(WiFiDirectActivity.TAG, "P2P peers changed")
+            Log.d(WifiDirectAction.TAG, "P2P peers changed")
         } else if (WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION == action) {
             if (manager == null) {
                 return
@@ -69,19 +68,18 @@ class WifiDirectBroadcastReceiver : BroadcastReceiver() {
                 // we are connected with the other device, request connection
                 // info to find group owner IP
                 val fragment: DeviceDetailFragment = activity
-                    .getFragmentManager().findFragmentById(R.id.frag_detail) as DeviceDetailFragment
+                    ?.getFragmentManager().findFragmentById(R.id.frag_detail) as DeviceDetailFragment
                 manager!!.requestConnectionInfo(channel, fragment)
             } else {
                 // It's a disconnect
-                activity.resetData()
+                activity?.resetData()
             }
         } else if (WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION == action) {
-            val fragment: DeviceListFragment = activity.getFragmentManager()
-                .findFragmentById(R.id.frag_list) as DeviceListFragment
+            val fragment: DeviceListFragment = activity?.getFragmentManager()?.findFragmentById(R.id.frag_list) as DeviceListFragment
             fragment.updateThisDevice(
                 intent.getParcelableExtra<Parcelable>(
                     WifiP2pManager.EXTRA_WIFI_P2P_DEVICE
-                ) as WifiP2pDevice?
+                ) as WifiP2pDevice
             )
         }
     }

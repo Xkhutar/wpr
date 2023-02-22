@@ -1,16 +1,27 @@
 package com.example.bprac
 
 import android.app.Fragment
+import android.app.ProgressDialog
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.net.wifi.WpsInfo
+import android.net.wifi.p2p.WifiP2pConfig
+import android.net.wifi.p2p.WifiP2pDevice
+import android.net.wifi.p2p.WifiP2pInfo
+import android.net.wifi.p2p.WifiP2pManager
+import android.os.Bundle
 import android.support.v4.content.FileProvider
 import android.util.Log
+import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
+import android.widget.TextView
+import androidx.core.content.FileProvider
 import java.io.*
 import java.net.ServerSocket
 
-class DeviceDetailFragment() : Fragment(), ConnectionInfoListener {
+class DeviceDetailFragment() : Fragment(), WifiP2pManager.ConnectionInfoListener {
     private var mContentView: View? = null
     private var device: WifiP2pDevice? = null
     private var info: WifiP2pInfo? = null
@@ -24,19 +35,19 @@ class DeviceDetailFragment() : Fragment(), ConnectionInfoListener {
         container: ViewGroup?,
         savedInstanceState: Bundle
     ): View? {
-        mContentView = inflater.inflate(R.layout.device_detail, null)
+        mContentView = inflater.inflate(R.layout.device_layout, null)
         mContentView!!.findViewById<View>(R.id.btn_connect)
             .setOnClickListener(View.OnClickListener {
                 val config = WifiP2pConfig()
-                config.deviceAddress = device.deviceAddress
+                config.deviceAddress = device?.deviceAddress
                 config.wps.setup = WpsInfo.PBC
-                if (progressDialog != null && progressDialog.isShowing()) {
-                    progressDialog.dismiss()
+                if (progressDialog != null && progressDialog!!.isShowing()) {
+                    progressDialog!!.dismiss()
                 }
                 progressDialog = ProgressDialog.show(
                     activity,
                     "Press back to cancel",
-                    "Connecting to :" + device.deviceAddress,
+                    "Connecting to :" + device?.deviceAddress,
                     true,
                     true //                        new DialogInterface.OnCancelListener() {
                     //
@@ -60,7 +71,7 @@ class DeviceDetailFragment() : Fragment(), ConnectionInfoListener {
                     // Allow user to pick an image from Gallery or other
                     // registered apps
                     val intent = Intent(Intent.ACTION_GET_CONTENT)
-                    intent.setType("image/*")
+                    intent.type = "image/*"
                     startActivityForResult(intent, CHOOSE_FILE_RESULT_CODE)
                 }
             })
@@ -70,10 +81,10 @@ class DeviceDetailFragment() : Fragment(), ConnectionInfoListener {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent) {
         // User has picked an image. Transfer it to group owner i.e peer using
         // FileTransferService.
-        val uri: Uri = data.getData()
+        val uri: Uri? = data.data
         val statusText: TextView = mContentView!!.findViewById<View>(R.id.status_text) as TextView
         statusText.setText("Sending: $uri")
-        Log.d(WiFiDirectActivity.TAG, "Intent----------- $uri")
+        Log.d(WifiDirectAction.TAG, "Intent----------- $uri")
         val serviceIntent = Intent(activity, FileTransferService::class.java)
         serviceIntent.setAction(FileTransferService.ACTION_SEND_FILE)
         serviceIntent.putExtra(FileTransferService.EXTRAS_FILE_PATH, uri.toString())
@@ -86,8 +97,8 @@ class DeviceDetailFragment() : Fragment(), ConnectionInfoListener {
     }
 
     override fun onConnectionInfoAvailable(info: WifiP2pInfo) {
-        if (progressDialog != null && progressDialog.isShowing()) {
-            progressDialog.dismiss()
+        if (progressDialog != null && progressDialog!!.isShowing()) {
+            progressDialog!!.dismiss()
         }
         this.info = info
         this.view!!.visibility = View.VISIBLE
@@ -172,9 +183,9 @@ class DeviceDetailFragment() : Fragment(), ConnectionInfoListener {
         protected override fun doInBackground(vararg params: Void): String {
             try {
                 val serverSocket = ServerSocket(8988)
-                Log.d(WiFiDirectActivity.TAG, "Server: Socket opened")
+                Log.d(WifiDirectAction.TAG, "Server: Socket opened")
                 val client = serverSocket.accept()
-                Log.d(WiFiDirectActivity.TAG, "Server: connection done")
+                Log.d(WifiDirectAction.TAG, "Server: connection done")
                 val f = File(
                     context.getExternalFilesDir("received"),
                     ("wifip2pshared-" + System.currentTimeMillis()
@@ -183,14 +194,14 @@ class DeviceDetailFragment() : Fragment(), ConnectionInfoListener {
                 val dirs = File(f.parent)
                 if (!dirs.exists()) dirs.mkdirs()
                 f.createNewFile()
-                Log.d(WiFiDirectActivity.TAG, "server: copying files $f")
+                Log.d(WifiDirectAction.TAG, "server: copying files $f")
                 val inputstream = client.getInputStream()
                 copyFile(inputstream, FileOutputStream(f))
                 serverSocket.close()
                 return f.absolutePath
             } catch (e: IOException) {
-                Log.e(WiFiDirectActivity.TAG, (e.message)!!)
-                return null
+                Log.e(WifiDirectAction.TAG, (e.message)!!)
+                return "null"
             }
         }
 
@@ -220,7 +231,7 @@ class DeviceDetailFragment() : Fragment(), ConnectionInfoListener {
          * @see android.os.AsyncTask#onPreExecute()
          */
         protected override fun onPreExecute() {
-            statusText.setText("Opening a server socket")
+            statusText.text = "Opening a server socket"
         }
     }
 
@@ -236,7 +247,7 @@ class DeviceDetailFragment() : Fragment(), ConnectionInfoListener {
                 out.close()
                 inputStream.close()
             } catch (e: IOException) {
-                Log.d(WiFiDirectActivity.TAG, e.toString())
+                Log.d(WifiDirectAction.TAG, e.toString())
                 return false
             }
             return true

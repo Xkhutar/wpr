@@ -111,7 +111,7 @@ class DeviceListFragment : ListFragment(), PeerListListener {
         peers.addAll(peerList.deviceList)
         (listAdapter as WiFiPeerListAdapter).notifyDataSetChanged()
         if (peers.size == 0) {
-            Log.d(WiFiDirectActivity.TAG, "No devices found")
+            Log.d(WifiDirectAction.TAG, "No devices found")
             return
         }
     }
@@ -147,7 +147,7 @@ class DeviceListFragment : ListFragment(), PeerListListener {
 
     companion object {
         private fun getDeviceStatus(deviceStatus: Int): String {
-            Log.d(WiFiDirectActivity.TAG, "Peer status :$deviceStatus")
+            Log.d(WifiDirectAction.TAG, "Peer status :$deviceStatus")
             return when (deviceStatus) {
                 WifiP2pDevice.AVAILABLE -> "Available"
                 WifiP2pDevice.INVITED -> "Invited"

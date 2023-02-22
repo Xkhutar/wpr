@@ -28,22 +28,24 @@ class FileTransferService : IntentService {
             val socket = Socket()
             val port = intent.extras!!.getInt(EXTRAS_GROUP_OWNER_PORT)
             try {
-                Log.d(WifiDirectActivity.TAG, "Opening client socket - ")
+                Log.d(WifiDirectAction.TAG, "Opening client socket - ")
                 socket.bind(null)
                 socket.connect(InetSocketAddress(host, port), SOCKET_TIMEOUT)
-                Log.d(WifiDirectActivity.TAG, "Client socket - " + socket.isConnected)
+                Log.d(WifiDirectAction.TAG, "Client socket - " + socket.isConnected)
                 val stream = socket.getOutputStream()
                 val cr = context.contentResolver
                 var `is`: InputStream? = null
                 try {
                     `is` = cr.openInputStream(Uri.parse(fileUri))
                 } catch (e: FileNotFoundException) {
-                    Log.d(WifiDirectActivity.TAG, e.toString())
+                    Log.d(WifiDirectAction.TAG, e.toString())
                 }
-                DeviceDetailFragment.copyFile(`is`, stream)
-                Log.d(WifiDirectActivity.TAG, "Client: Data written")
+                if (`is` != null) {
+                    DeviceDetailFragment.copyFile(`is`, stream)
+                }
+                Log.d(WifiDirectAction.TAG, "Client: Data written")
             } catch (e: IOException) {
-                Log.e(WifiDirectActivity.TAG, e.message!!)
+                Log.e(WifiDirectAction.TAG, e.message!!)
             } finally {
                 if (socket != null) {
                     if (socket.isConnected) {
