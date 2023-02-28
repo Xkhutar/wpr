@@ -76,24 +76,28 @@ class MainActivity : AppCompatActivity(), ChannelListener {
         }
     }
 
-    override fun connect(config: WifiP2pConfig) {
-        manager!!.connect(channel, config, object : ActionListener {
+    public fun connect(config: WifiP2pConfig) {
+        try {
+            manager!!.connect(channel, config, object : ActionListener {
 
-            override fun onSuccess() {
-                // WiFiDirectBroadcastReceiver will notify us. Ignore for now.
-            }
+                override fun onSuccess() {
+                    Log.d(TAG, "COnnect yay!");
+                }
 
-            override fun onFailure(reason: Int) {
-                Toast.makeText(this@WiFiDirectActivity, "Connect failed. Retry.",
-                    Toast.LENGTH_SHORT).show()
-            }
-        })
+                override fun onFailure(reason: Int) {
+                    Toast.makeText(this@MainActivity, "Connect failed. Retry.", Toast.LENGTH_SHORT)
+                        .show();
+                }
+            })
+        }
+        catch (e: SecurityException)
+        {
+            Log.d(TAG, "Amongus yay!");
+        }
     }
 
-    override fun disconnect() {
-        val fragment = supportFragmentManager
-            .findFragmentById(R.id.frag_detail) as DeviceDetailFragment
-        fragment.resetViews()
+    public fun disconnect() {
+
         manager!!.removeGroup(channel, object : ActionListener {
 
             override fun onFailure(reasonCode: Int) {
@@ -102,7 +106,7 @@ class MainActivity : AppCompatActivity(), ChannelListener {
             }
 
             override fun onSuccess() {
-                fragment.view!!.visibility = View.GONE
+                Log.d(TAG, "Disconnect yay!")
             }
 
         })
@@ -112,7 +116,6 @@ class MainActivity : AppCompatActivity(), ChannelListener {
         // we will try once more
         if (manager != null && !retryChannel) {
             Toast.makeText(this, "Channel lost. Trying again", Toast.LENGTH_LONG).show()
-            resetData()
             retryChannel = true
             manager!!.initialize(this, mainLooper, this)
         } else {
@@ -121,7 +124,7 @@ class MainActivity : AppCompatActivity(), ChannelListener {
                 Toast.LENGTH_LONG).show()
         }
     }
-
+/*
     override fun cancelDisconnect() {
 
         /*
@@ -139,12 +142,12 @@ class MainActivity : AppCompatActivity(), ChannelListener {
                 manager!!.cancelConnect(channel, object : ActionListener {
 
                     override fun onSuccess() {
-                        Toast.makeText(this@WiFiDirectActivity, "Aborting connection",
+                        Toast.makeText(this@MainActivity, "Aborting connection",
                             Toast.LENGTH_SHORT).show()
                     }
 
                     override fun onFailure(reasonCode: Int) {
-                        Toast.makeText(this@WiFiDirectActivity,
+                        Toast.makeText(this@MainActivity,
                             "Connect abort request failed. Reason Code: $reasonCode",
                             Toast.LENGTH_SHORT).show()
                     }
@@ -152,24 +155,30 @@ class MainActivity : AppCompatActivity(), ChannelListener {
             }
         }
     }
-
+*/
 
     private fun createGroup() {
-        manager?.also { manager ->
+        try {
+            manager?.also { manager ->
 
-            manager.requestGroupInfo(channel) { group ->
-                Log.d(TAG, "createGroup group:$group")
+                manager.requestGroupInfo(channel) { group ->
+                    Log.d(TAG, "createGroup group:$group")
+                }
+
+                manager.createGroup(channel, object : ActionListener {
+                    override fun onSuccess() {
+                        Toast.makeText(this@MainActivity, "create group success", Toast.LENGTH_SHORT).show()
+                    }
+
+                    override fun onFailure(reason: Int) {
+                        Toast.makeText(this@MainActivity, "create group failure", Toast.LENGTH_SHORT).show()
+                    }
+                })
             }
-
-            manager.createGroup(channel, object : ActionListener {
-                override fun onSuccess() {
-                    Toast.makeText(this@WiFiDirectActivity, "create group success", Toast.LENGTH_SHORT).show()
-                }
-
-                override fun onFailure(reason: Int) {
-                    Toast.makeText(this@WiFiDirectActivity, "create group failure", Toast.LENGTH_SHORT).show()
-                }
-            })
+        }
+        catch(e: SecurityException)
+        {
+            Log.d(TAG, "You are stupid and dumb");
         }
     }
 
@@ -221,12 +230,12 @@ class MainActivity : AppCompatActivity(), ChannelListener {
                 mediaRecorder = MediaRecorder()//depreciated, using anyways for now
             }
 
-        output = path
+            output = path
 
-        mediaRecorder?.setAudioSource(MediaRecorder.AudioSource.DEFAULT)
-        mediaRecorder?.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4) //correct format?
-        mediaRecorder?.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)    //correct encoder?
-        mediaRecorder?.setOutputFile(output)
+            mediaRecorder?.setAudioSource(MediaRecorder.AudioSource.DEFAULT)
+            mediaRecorder?.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4) //correct format?
+            mediaRecorder?.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)    //correct encoder?
+            mediaRecorder?.setOutputFile(output)
 
             var mMediaPlayer: MediaPlayer? = null
             try {
