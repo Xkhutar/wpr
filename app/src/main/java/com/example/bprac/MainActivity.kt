@@ -258,7 +258,7 @@ class MainActivity : AppCompatActivity(), ChannelListener {
             manager = getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
             channel = manager?.initialize(this, mainLooper, null)
             channel?.also { channel ->
-                receiver = WiFiDirectBroadcastReceiver(manager, channel, this)
+                receiver = WiFiDirectBroadcastReceiver(manager!!, channel, this)
             }
         }
 

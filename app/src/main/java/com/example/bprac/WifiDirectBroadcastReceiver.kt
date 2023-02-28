@@ -33,7 +33,7 @@ import android.util.Log
 import androidx.core.app.ActivityCompat
 
 
-class WifiDirectBroadcastReceiver : BroadcastReceiver() {
+class WiFiDirectBroadcastReceiver(manager: WifiP2pManager, channel: WifiP2pManager.Channel, activity: MainActivity) : BroadcastReceiver() {
     private var manager: WifiP2pManager? = null
     private var channel: WifiP2pManager.Channel? = null
     private var activity: MainActivity? = null
@@ -44,12 +44,12 @@ class WifiDirectBroadcastReceiver : BroadcastReceiver() {
      * @param channel Wifi p2p channel
      * @param activity activity associated with the receiver
      */
-    fun WiFiDirectBroadcastReceiver(manager: WifiP2pManager?, channel: WifiP2pManager.Channel?, activity: MainActivity?) {
+    init {
         //super()
         this.manager = manager
         this.channel = channel
         this.activity = activity
-        this.network = NetworkSus();
+        this.network = NetworkSus(activity!!);
     }
 
     /*

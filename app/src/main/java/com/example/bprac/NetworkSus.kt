@@ -11,6 +11,7 @@ import android.util.Log
 import android.view.View
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContentProviderCompat.requireContext
 import androidx.core.content.FileProvider
 import java.io.*
 import java.net.ServerSocket
@@ -21,14 +22,14 @@ class NetworkSus : WifiP2pManager.ConnectionInfoListener {
     private var info: WifiP2pInfo? = null
     private var activity: AppCompatActivity? = null
 
-    fun NetworkSus(activity: AppCompatActivity) {
+    constructor(activity: AppCompatActivity) {
         this.activity = activity
     }
 
     override fun onConnectionInfoAvailable(info: WifiP2pInfo?) {
         this.info = info;
         if (info!!.groupFormed && info!!.isGroupOwner) {
-            FileServerAsyncTask(requireContext()).execute()
+            FileServerAsyncTask(activity!!.applicationContext).execute()
         } else if (info!!.groupFormed) {
             // The other device acts as the client. In this case, we enable the
             // get file button.
