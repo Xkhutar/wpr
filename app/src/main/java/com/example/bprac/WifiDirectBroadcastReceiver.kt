@@ -37,7 +37,6 @@ class WiFiDirectBroadcastReceiver(manager: WifiP2pManager, channel: WifiP2pManag
     private var manager: WifiP2pManager? = null
     private var channel: WifiP2pManager.Channel? = null
     private var activity: MainActivity? = null
-    private var network: NetworkSus? = null
 
     /**
      * @param manager WifiP2pManager system service
@@ -49,55 +48,37 @@ class WiFiDirectBroadcastReceiver(manager: WifiP2pManager, channel: WifiP2pManag
         this.manager = manager
         this.channel = channel
         this.activity = activity
-        this.network = NetworkSus(activity!!);
     }
 
-    /*
-     * (non-Javadoc)
-     * @see android.content.BroadcastReceiver#onReceive(android.content.Context,
-     * android.content.Intent)
-     */
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action
+        Log.d("SUS", "GOT STATE "+action)
+
         if (WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION == action) {
             // UI update to indicate wifi p2p status.
             val state = intent.getIntExtra(WifiP2pManager.EXTRA_WIFI_STATE, -1)
             if (state == WifiP2pManager.WIFI_P2P_STATE_ENABLED) {
-                // Wifi Direct mode is enabled
+                Log.d("SUS", "HELL YES!!!")
                 activity!!.setIsWifiP2pEnabled(true)
             } else {
                 activity!!.setIsWifiP2pEnabled(false)
 
             }
-            Log.d("SUS", "P2P peers changed")
         } else if (WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION == action) {
 
-            // request available peers from the wifi p2p manager. This is an
-            // asynchronous call and the calling activity is notified with a
-            // callback on PeerListListener.onPeersAvailable()
 
             if (manager != null) {
                 if (ActivityCompat.checkSelfPermission(activity!!.applicationContext, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                     return
                 }
-                manager!!.requestPeers(channel, network as PeerListListener)
+                manager!!.requestPeers(channel, activity)
             }
-            Log.d("SUS", "P2P peers changed")
+            Log.d("SUS", "AMONG US IS REAL")
 
 
-
-            val networkInfo = intent.getParcelableExtra<Parcelable>(WifiP2pManager.EXTRA_NETWORK_INFO) as NetworkInfo?
-            if (networkInfo!!.isConnected) {
-                // we are connected with the other device, request connection
-                // info to find group owner IP
-                manager!!.requestConnectionInfo(channel, network)
-
-            } else {
-
-            }
         } else if (WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION == action) {
-            val wifiP2pDevice = intent.getParcelableExtra<Parcelable>(WifiP2pManager.EXTRA_WIFI_P2P_DEVICE) as WifiP2pDevice
-            Log.d("SUS", "P2P peers changed")
+            //val wifiP2pDevice = intent.getParcelableExtra<Parcelable>(WifiP2pManager.EXTRA_WIFI_P2P_DEVICE) as WifiP2pDevice
+            Log.d("SUS", "THIS DEVICE EL SUS")
         }
     }
 }

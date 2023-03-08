@@ -6,47 +6,43 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.ContextWrapper
+import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.location.LocationManager
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.net.Uri
-import android.net.wifi.p2p.WifiP2pManager
+import android.net.wifi.p2p.*
+import android.net.wifi.p2p.WifiP2pManager.*
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.provider.Settings
+import android.util.Log
 import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import java.io.File
 import java.io.IOException
-import android.net.wifi.p2p.WifiP2pConfig
-import android.net.wifi.p2p.WifiP2pDevice
-import android.net.wifi.p2p.WifiP2pGroup
-import android.net.wifi.p2p.WifiP2pManager.*
-import android.provider.Settings
-import android.util.Log
-import android.view.Menu
-import android.view.MenuItem
-import android.view.View
-
 import java.util.*
 
-class MainActivity : AppCompatActivity(), ChannelListener {
+
+class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener {
 
     private var output: String? = null
     private var mediaRecorder: MediaRecorder? = null
     private var state: Boolean = false
-    private var recordingStopped: Boolean = false
+    private var pushToggle: Boolean = false
     var mMediaPlayer: MediaPlayer? = null //private?
 
     private var manager: WifiP2pManager? = null
     private var isWifiP2pEnabled = false
     private var retryChannel = false
+
+    private val peers = mutableListOf<WifiP2pDevice>()
 
     private val intentFilter = IntentFilter().apply {
         addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION)
@@ -64,16 +60,13 @@ class MainActivity : AppCompatActivity(), ChannelListener {
 
     public override fun onResume() {
         super.onResume()
-        receiver?.also { receiver ->
-            registerReceiver(receiver, intentFilter)
-        }
+        receiver = WiFiDirectBroadcastReceiver(manager!!, channel!!, this)
+        registerReceiver(receiver, intentFilter)
     }
 
     public override fun onPause() {
         super.onPause()
-        receiver?.also { receiver ->
-            unregisterReceiver(receiver)
-        }
+        unregisterReceiver(receiver)
     }
 
     public fun connect(config: WifiP2pConfig) {
@@ -197,6 +190,13 @@ class MainActivity : AppCompatActivity(), ChannelListener {
                     Manifest.permission.RECORD_AUDIO,
                     Manifest.permission.WRITE_EXTERNAL_STORAGE,
                     Manifest.permission.READ_EXTERNAL_STORAGE,
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_WIFI_STATE,
+                    Manifest.permission.CHANGE_WIFI_STATE,
+                    Manifest.permission.CHANGE_NETWORK_STATE,
+                    Manifest.permission.INTERNET,
+                    Manifest.permission.ACCESS_NETWORK_STATE,
+                    Manifest.permission.READ_PHONE_STATE
                 ),
                 111
             )
@@ -215,10 +215,9 @@ class MainActivity : AppCompatActivity(), ChannelListener {
 
         output = path
 
-        mediaRecorder?.setAudioSource(MediaRecorder.AudioSource.DEFAULT)
-        mediaRecorder?.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4) //correct format?
-        mediaRecorder?.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)    //correct encoder?
-        mediaRecorder?.setOutputFile(output)
+
+        manager = getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
+        channel = manager?.initialize(this, mainLooper, this)
 
 
         fun playRecording(uri: Uri) {
@@ -255,15 +254,16 @@ class MainActivity : AppCompatActivity(), ChannelListener {
                 mMediaPlayer = null
             }
 
-            manager = getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
-            channel = manager?.initialize(this, mainLooper, null)
-            channel?.also { channel ->
-                receiver = WiFiDirectBroadcastReceiver(manager!!, channel, this)
-            }
+
         }
 
 
         fun startRecording() {
+            mediaRecorder?.setAudioSource(MediaRecorder.AudioSource.DEFAULT)
+            mediaRecorder?.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4) //correct format?
+            mediaRecorder?.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)    //correct encoder?
+            mediaRecorder?.setOutputFile(output)
+
             try {
                 mediaRecorder?.prepare()
                 mediaRecorder?.start()
@@ -298,16 +298,38 @@ class MainActivity : AppCompatActivity(), ChannelListener {
                 val permissions = arrayOf(android.Manifest.permission.RECORD_AUDIO, android.Manifest.permission.WRITE_EXTERNAL_STORAGE, android.Manifest.permission.READ_EXTERNAL_STORAGE)
                 ActivityCompat.requestPermissions(this, permissions,0)
             } else {
-                startRecording()
-            }
+                if (pushToggle)
+                    stopRecording()
+                else
+                    startRecording()
 
+                pushToggle = !pushToggle
+            }
         }
 
         val toggle = findViewById<Button>(R.id.toggle)
         toggle.setOnClickListener {
             //Toast.makeText(this, "Toggling audio input mode (TBC)", Toast.LENGTH_SHORT).show()
             //Temporarily using this as a stop recording button
-            stopRecording()
+            //stopRecording()
+            var lmanager = getSystemService(LOCATION_SERVICE) as LocationManager
+            if (!lmanager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                Toast.makeText(this, "please enable location servicedededes", Toast.LENGTH_LONG).show()
+                startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+            }
+
+
+
+            manager!!.discoverPeers(channel, object : WifiP2pManager.ActionListener {
+                override fun onSuccess() {
+                    Toast.makeText(this@MainActivity, "Amongus", Toast.LENGTH_SHORT).show()
+                }
+
+                override fun onFailure(reasonCode: Int) {
+                    Toast.makeText(this@MainActivity, "Sussy..."+reasonCode, Toast.LENGTH_SHORT).show()
+                }
+            })
+
         }
 
         val changeChannel = findViewById<Button>(R.id.change_channel)
@@ -317,15 +339,32 @@ class MainActivity : AppCompatActivity(), ChannelListener {
             //these two lines are the correct function, but temporarily using this as the playback button
 
             //val file = File(Environment.getExternalStorageDirectory(), "recording.mp3")
-            val file = File(path) //File(getFilesDir().toString() + "/recording.mp3")
-            val uri = Uri.fromFile(file)
-            playRecording(uri)
+            //val file = File(path) //File(getFilesDir().toString() + "/recording.mp3")
+            //val uri = Uri.fromFile(file)
+            //playRecording(uri)
         }
 
     }
 
     companion object {
         private const val TAG = "wpr"
+    }
+
+    override fun onPeersAvailable(peerList: WifiP2pDeviceList?) {
+        Log.d("SUS", "PISS")
+        val refreshedPeers = peerList!!.deviceList
+        if (refreshedPeers != peers) {
+            peers.clear()
+            peers.addAll(refreshedPeers)
+            for (thing in peers)
+            {
+                Log.d("SUS", thing.deviceName)
+            }
+        }
+
+        if (peers.isEmpty()) {
+            Log.d(TAG, "No devices found")
+        }
     }
 
 }
