@@ -30,15 +30,20 @@ class NetworkAmongus {
         this.activity = activity
     }
 
-    class ClientHandshake(private val port: Int, private val hostAddress: InetAddress) : AsyncTask<Void?, Void?, String?>()
+    class ClientHandshake(private val port: Int, private val hostAddress: InetAddress, private val onTerminate: () -> Unit) : AsyncTask<Void?, Void?, String?>()
     {
         protected override fun doInBackground(vararg p0: Void?): String? {
+            Log.d("HANDSHAKE","CLIENT")
             val socket = Socket()
             socket.reuseAddress = true
             socket.bind(null)
             socket.connect(InetSocketAddress(hostAddress, port), 10000)
             socket.close()
             return "YIPEE"
+        }
+
+        protected override fun onPostExecute(result: String?) {
+            onTerminate()
         }
     }
 
@@ -49,6 +54,7 @@ class NetworkAmongus {
          */
 
         protected override fun doInBackground(vararg p0: Void?): String? {
+            Log.d(TAG, "YOU TRIED LMAO!")
             val file = File(path) //File(getFilesDir().toString() + "/recording.mp3")
             val fileUri = Uri.fromFile(file)
             val socket = Socket()

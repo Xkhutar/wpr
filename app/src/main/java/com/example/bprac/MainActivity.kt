@@ -32,6 +32,8 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.*
+import java.util.concurrent.Callable
+import java.util.concurrent.Executors
 
 
 class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, ConnectionInfoListener {
@@ -53,6 +55,8 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
     public var hostAddress: InetAddress? = null
     private var sendPort: Int = 0
     private var receivePort: Int = 0
+
+    private var server: Callable<Any>? = null
 
     private val intentFilter = IntentFilter().apply {
         addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION)
@@ -381,7 +385,8 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
         return true
     }
     fun attemptSendAudio() {
-        NetworkAmongus.FileClientAsyncTask(this@MainActivity, output!!, hostAddress!!, 8988).execute()
+        Log.d(TAG, "Attempting audio transmission...")
+        NetworkAmongus.FileClientAsyncTask(this@MainActivity, output!!, hostAddress!!, sendPort).execute()
     }
 
     fun playAudio() {
@@ -428,14 +433,28 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
         }
     }
 
+    fun setAddress(hostAddress: InetAddress) {
+        Log.d(TAG, "Got client address! ->"+hostAddress.toString())
+        this.hostAddress = hostAddress
+    }
+
+    fun startServer() {
+        Thread(NetworkSus.FileServerAsyncTask(output!!, receivePort, ::playAudio)).start()
+    }
+
     override fun onConnectionInfoAvailable(info: WifiP2pInfo?) {
         Log.d("CONNECT", "EITHER TBH")
         if (info!!.groupFormed && info!!.isGroupOwner) {
-            NetworkSus.FileServerAsyncTask(this@MainActivity, output!!, 8988, ::playAudio).execute()
+            Log.d(TAG, "I AM SERVER!")
+            sendPort = 8998
+            receivePort = 8989
+            NetworkSus.ServerHandshake(receivePort, ::setAddress, ::startServer).execute()
         } else if (info!!.groupFormed) {
-            println("I AM CLIENT!")
+            Log.d(TAG, "I AM CLIENT!")
             hostAddress = info!!.groupOwnerAddress
+            sendPort = 8989
+            receivePort = 8998
+            NetworkAmongus.ClientHandshake(sendPort, hostAddress!!, ::startServer).execute()
         }
     }
-
 }

@@ -27,24 +27,26 @@ class NetworkSus {
         this.activity = activity
     }
 
-    class ServerHandshake(private val port: Int, private val receptor: (InetAddress) -> Unit) : AsyncTask<Void?, Void?, String?>()
+    class ServerHandshake(private val port: Int, private val receptor: (InetAddress) -> Unit, private val onTerminate: () -> Unit) : AsyncTask<Void?, Void?, String?>()
     {
         protected override fun doInBackground(vararg p0: Void?): String? {
+            Log.d("HANDSHAKE","SERVER")
             val serverSocket = ServerSocket(port)
             val client = serverSocket.accept()
             receptor(client.inetAddress);
             serverSocket.close()
             return "YIPEE"
         }
+
+        protected override fun onPostExecute(result: String?) {
+            Log.d("123", "YIPEE!")
+            onTerminate()
+        }
     }
 
-    class FileServerAsyncTask(private val context: Context, private val path: String, private val port: Int, private val onFinish: () -> Unit) : AsyncTask<Void?, Void?, String?>() {
-        /**
-         * @param context
-         * @param statusText
-         */
+    class FileServerAsyncTask(private val path: String, private val port: Int, private val onFinish: () -> Unit) : Runnable {
 
-        protected override fun doInBackground(vararg p0: Void?): String? {
+        override fun run() {
             while (true) {
                 Log.d("CHILLING", "LOL")
                 try {
@@ -65,20 +67,6 @@ class NetworkSus {
                 }
             }
         }
-
-
-        /*
-         * (non-Javadoc)
-         * @see android.os.AsyncTask#onPostExecute(java.lang.Object)
-         */
-        protected override fun onPostExecute(result: String?) {
-            if (result != null) {
-                Log.d("FSTASK", "YIPEE!")
-            }
-        }
-
-
-
     }
 
     companion object {
