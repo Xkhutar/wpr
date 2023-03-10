@@ -25,6 +25,7 @@
         android:theme="@style/Theme.Bprac"
         tools:targetApi="31">
         <activity
+            android:screenOrientation="portrait"
             android:name=".AppStart"
             android:exported="false">
             <meta-data
@@ -32,6 +33,7 @@
                 android:value="" />
         </activity>
         <activity
+            android:screenOrientation="portrait"
             android:name=".ChannelSelectActivity"
             android:exported="false">
             <meta-data
@@ -39,6 +41,7 @@
                 android:value="" />
         </activity>
         <activity
+            android:screenOrientation="portrait"
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>

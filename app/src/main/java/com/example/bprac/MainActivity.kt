@@ -1,3 +1,4 @@
+
 //note: this version uses the toggle button to stop audio recording, and the change channel button to play it back.
 
 package com.example.bprac
@@ -26,11 +27,14 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import java.io.IOException
+import java.io.*
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.Socket
 import java.util.*
 
 
-class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener {
+class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, ConnectionInfoListener {
 
     private var output: String? = null
     private var mediaRecorder: MediaRecorder? = null
@@ -41,8 +45,14 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener {
     private var manager: WifiP2pManager? = null
     private var isWifiP2pEnabled = false
     private var retryChannel = false
+    public var networkSus: NetworkSus? = null
 
     private val peers = mutableListOf<WifiP2pDevice>()
+    private var currentPeer: WifiP2pDevice? = null
+
+    public var hostAddress: InetAddress? = null
+    private var sendPort: Int = 0
+    private var receivePort: Int = 0
 
     private val intentFilter = IntentFilter().apply {
         addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION)
@@ -175,6 +185,81 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener {
         }
     }
 
+    fun playRecording(uri: Uri) {
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            mediaRecorder = MediaRecorder(this)
+        }
+        else {
+            mediaRecorder = MediaRecorder()//depreciated, using anyways for now
+        }
+
+        mediaRecorder?.setAudioSource(MediaRecorder.AudioSource.DEFAULT)
+        mediaRecorder?.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4) //correct format?
+        mediaRecorder?.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)    //correct encoder?
+        mediaRecorder?.setOutputFile(output)
+
+        var mMediaPlayer: MediaPlayer? = null
+        try {
+            mMediaPlayer = MediaPlayer().apply {
+                setDataSource(application, uri)
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build()
+                )
+                prepare()
+                start()
+            }
+        } catch (exception: IOException) {
+            mMediaPlayer?.release()
+            mMediaPlayer = null
+        }
+
+
+    }
+
+
+    private fun startRecording() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            mediaRecorder = MediaRecorder(this)
+        }
+        else {
+            mediaRecorder = MediaRecorder()//depreciated, using anyways for now
+        }
+
+        mediaRecorder?.setAudioSource(MediaRecorder.AudioSource.DEFAULT)
+        mediaRecorder?.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4) //correct format?
+        mediaRecorder?.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)    //correct encoder?
+        mediaRecorder?.setOutputFile(output)
+
+        try {
+            mediaRecorder?.prepare()
+            mediaRecorder?.start()
+            state = true
+            Toast.makeText(this, "Recording started!", Toast.LENGTH_SHORT).show()
+        } catch (e: IllegalStateException) {
+            e.printStackTrace()
+        } catch (e: IOException) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun stopRecording(){
+        if(state){
+            mediaRecorder?.stop()
+            mediaRecorder?.reset()
+            mediaRecorder?.release()
+            mediaRecorder = null
+            state = false
+            Toast.makeText(this, "stopping recording", Toast.LENGTH_SHORT).show()
+
+            attemptSendAudio()
+        }else{
+            Toast.makeText(this, "You are not recording right now!", Toast.LENGTH_SHORT).show()
+        }
+    }
     @SuppressLint("MissingInflatedId") //cant remember what this is
     @Override //not sure why i needed this either
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -219,75 +304,23 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener {
         manager = getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
         channel = manager?.initialize(this, mainLooper, this)
 
-
-        fun playRecording(uri: Uri) {
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                mediaRecorder = MediaRecorder(this)
-            }
-            else {
-                mediaRecorder = MediaRecorder()//depreciated, using anyways for now
-            }
-
-            output = path
-
-            mediaRecorder?.setAudioSource(MediaRecorder.AudioSource.DEFAULT)
-            mediaRecorder?.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4) //correct format?
-            mediaRecorder?.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)    //correct encoder?
-            mediaRecorder?.setOutputFile(output)
-
-            var mMediaPlayer: MediaPlayer? = null
-            try {
-                mMediaPlayer = MediaPlayer().apply {
-                    setDataSource(application, uri)
-                    setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_MEDIA)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                            .build()
-                    )
-                    prepare()
-                    start()
-                }
-            } catch (exception: IOException) {
-                mMediaPlayer?.release()
-                mMediaPlayer = null
-            }
-
-
+        var lmanager = getSystemService(LOCATION_SERVICE) as LocationManager
+        if (!lmanager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+            Toast.makeText(this, "please enable location servicedededes", Toast.LENGTH_LONG).show()
+            startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
         }
 
-
-        fun startRecording() {
-            mediaRecorder?.setAudioSource(MediaRecorder.AudioSource.DEFAULT)
-            mediaRecorder?.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4) //correct format?
-            mediaRecorder?.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)    //correct encoder?
-            mediaRecorder?.setOutputFile(output)
-
-            try {
-                mediaRecorder?.prepare()
-                mediaRecorder?.start()
-                state = true
-                Toast.makeText(this, "Recording started!", Toast.LENGTH_SHORT).show()
-            } catch (e: IllegalStateException) {
-                e.printStackTrace()
-            } catch (e: IOException) {
-                e.printStackTrace()
+        manager!!.discoverPeers(channel, object : WifiP2pManager.ActionListener {
+            override fun onSuccess() {
+                Toast.makeText(this@MainActivity, "Amongus", Toast.LENGTH_SHORT).show()
             }
-        }
 
-        fun stopRecording(){
-            if(state){
-                mediaRecorder?.stop()
-                mediaRecorder?.reset()
-                mediaRecorder?.release()
-                mediaRecorder = null
-                state = false
-                Toast.makeText(this, "stopping recording", Toast.LENGTH_SHORT).show()
-            }else{
-                Toast.makeText(this, "You are not recording right now!", Toast.LENGTH_SHORT).show()
+            override fun onFailure(reasonCode: Int) {
+                Toast.makeText(this@MainActivity, "Sussy... " + reasonCode, Toast.LENGTH_SHORT).show()
             }
-        }
+        })
+
+        networkSus = NetworkSus(this)
 
 
         val pushToTalk = findViewById<Button>(R.id.push_to_talk)
@@ -312,24 +345,7 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener {
             //Toast.makeText(this, "Toggling audio input mode (TBC)", Toast.LENGTH_SHORT).show()
             //Temporarily using this as a stop recording button
             //stopRecording()
-            var lmanager = getSystemService(LOCATION_SERVICE) as LocationManager
-            if (!lmanager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                Toast.makeText(this, "please enable location servicedededes", Toast.LENGTH_LONG).show()
-                startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
-            }
-
-
-
-            manager!!.discoverPeers(channel, object : WifiP2pManager.ActionListener {
-                override fun onSuccess() {
-                    Toast.makeText(this@MainActivity, "Amongus", Toast.LENGTH_SHORT).show()
-                }
-
-                override fun onFailure(reasonCode: Int) {
-                    Toast.makeText(this@MainActivity, "Sussy..."+reasonCode, Toast.LENGTH_SHORT).show()
-                }
-            })
-
+            attemptSendAudio()
         }
 
         val changeChannel = findViewById<Button>(R.id.change_channel)
@@ -339,9 +355,9 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener {
             //these two lines are the correct function, but temporarily using this as the playback button
 
             //val file = File(Environment.getExternalStorageDirectory(), "recording.mp3")
-            //val file = File(path) //File(getFilesDir().toString() + "/recording.mp3")
-            //val uri = Uri.fromFile(file)
-            //playRecording(uri)
+            val file = File(path) //File(getFilesDir().toString() + "/recording.mp3")
+            val uri = Uri.fromFile(file)
+            playRecording(uri)
         }
 
     }
@@ -349,21 +365,76 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener {
     companion object {
         private const val TAG = "wpr"
     }
+    fun copyFile(inputStream: InputStream, out: OutputStream): Boolean {
+        val buf = ByteArray(1024)
+        var len: Int
+        try {
+            while ((inputStream.read(buf).also { len = it }) != -1) {
+                out.write(buf, 0, len)
+            }
+            out.close()
+            inputStream.close()
+        } catch (e: IOException) {
+            Log.d("FSTASK", e.toString())
+            return false
+        }
+        return true
+    }
+    fun attemptSendAudio() {
+        NetworkAmongus.FileClientAsyncTask(this@MainActivity, output!!, hostAddress!!, 8988).execute()
+    }
+
+    fun playAudio() {
+        playRecording(Uri.fromFile(File(output)))
+    }
 
     override fun onPeersAvailable(peerList: WifiP2pDeviceList?) {
-        Log.d("SUS", "PISS")
         val refreshedPeers = peerList!!.deviceList
         if (refreshedPeers != peers) {
             peers.clear()
             peers.addAll(refreshedPeers)
-            for (thing in peers)
+
+            for (device in peers)
             {
-                Log.d("SUS", thing.deviceName)
+                if(device.deviceName.contains("WPR") && (currentPeer == null || currentPeer!!.deviceName != device.deviceName))
+                {
+                    currentPeer = device
+                    Log.d("PEER:", "Found my peer!!! -> "+currentPeer!!.deviceName)
+
+                    val config = WifiP2pConfig()
+                    config.deviceAddress = device.deviceAddress
+                    channel?.also { channel ->
+                        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                            return
+                        }
+                        manager?.connect(channel, config, object : WifiP2pManager.ActionListener {
+
+                            override fun onSuccess() {
+                                Log.d("PEER:", "Connected to "+device.deviceName+"!")
+                            }
+
+                            override fun onFailure(reason: Int) {
+                                Log.d("PEER:", "Could not sus...")
+                            }
+                        }
+                        )}
+
+                }
             }
         }
 
         if (peers.isEmpty()) {
             Log.d(TAG, "No devices found")
+        }
+    }
+
+    override fun onConnectionInfoAvailable(info: WifiP2pInfo?) {
+        Log.d("CONNECT", "EITHER TBH")
+        if (info!!.groupFormed && info!!.isGroupOwner) {
+            NetworkSus.FileServerAsyncTask(this@MainActivity, output!!, 8988, ::playAudio).execute()
+        } else if (info!!.groupFormed) {
+            println("I AM CLIENT!")
+            hostAddress = info!!.groupOwnerAddress
         }
     }
 

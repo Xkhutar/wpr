@@ -14,9 +14,10 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContentProviderCompat.requireContext
 import androidx.core.content.FileProvider
 import java.io.*
+import java.net.InetAddress
 import java.net.ServerSocket
 
-class NetworkSus : WifiP2pManager.ConnectionInfoListener {
+class NetworkSus {
 
     private var device: WifiP2pDevice? = null
     private var info: WifiP2pInfo? = null
@@ -26,47 +27,45 @@ class NetworkSus : WifiP2pManager.ConnectionInfoListener {
         this.activity = activity
     }
 
-    override fun onConnectionInfoAvailable(info: WifiP2pInfo?) {
-        this.info = info;
-        if (info!!.groupFormed && info!!.isGroupOwner) {
-            FileServerAsyncTask(activity!!.applicationContext).execute()
-        } else if (info!!.groupFormed) {
-            // The other device acts as the client. In this case, we enable the
-            // get file button.
-            println("I AM CLIENT!")
+    class ServerHandshake(private val port: Int, private val receptor: (InetAddress) -> Unit) : AsyncTask<Void?, Void?, String?>()
+    {
+        protected override fun doInBackground(vararg p0: Void?): String? {
+            val serverSocket = ServerSocket(port)
+            val client = serverSocket.accept()
+            receptor(client.inetAddress);
+            serverSocket.close()
+            return "YIPEE"
         }
     }
 
-    class FileServerAsyncTask(private val context: Context) : AsyncTask<Void?, Void?, String?>() {
+    class FileServerAsyncTask(private val context: Context, private val path: String, private val port: Int, private val onFinish: () -> Unit) : AsyncTask<Void?, Void?, String?>() {
         /**
          * @param context
          * @param statusText
          */
 
         protected override fun doInBackground(vararg p0: Void?): String? {
-            try {
-                val serverSocket = ServerSocket(8988)
-                Log.d("FSTASK", "Server: Socket opened")
-                val client = serverSocket.accept()
-                Log.d("FSTASK", "Server: connection done")
-                val f = File(
-                    context.getExternalFilesDir("received"),
-                    ("wifip2pshared-" + System.currentTimeMillis()
-                            + ".jpg")
-                )
-                val dirs = File(f.parent)
-                if (!dirs.exists()) dirs.mkdirs()
-                f.createNewFile()
-                Log.d("FSTASK", "server: copying files $f")
-                val inputstream = client.getInputStream()
-                copyFile(inputstream, FileOutputStream(f))
-                serverSocket.close()
-                return f.absolutePath
-            } catch (e: IOException) {
-                Log.e("FSTASK", (e.message)!!)
-                return "null"
+            while (true) {
+                Log.d("CHILLING", "LOL")
+                try {
+                    val serverSocket = ServerSocket(port)
+                    Log.d("FSTASK", "Server: Socket opened")
+                    val client = serverSocket.accept()
+                    Log.d("FSTASK", "Server: connection done")
+                    val file = File(path)
+                    if (file.exists()) file.delete()
+                    file.createNewFile()
+                    Log.d("FSTASK", "server: copying files $file")
+                    val inputstream = client.getInputStream()
+                    copyFile(inputstream, FileOutputStream(file))
+                    serverSocket.close()
+                    onFinish()
+                } catch (e: IOException) {
+                    Log.e("FSTASK", (e.message)!!)
+                }
             }
         }
+
 
         /*
          * (non-Javadoc)
@@ -74,17 +73,7 @@ class NetworkSus : WifiP2pManager.ConnectionInfoListener {
          */
         protected override fun onPostExecute(result: String?) {
             if (result != null) {
-                val recvFile = File(result)
-                val fileUri: Uri = FileProvider.getUriForFile(
-                    context,
-                    "com.example.android.wifidirect.fileprovider",
-                    recvFile
-                )
-                val intent = Intent()
-                intent.setAction(Intent.ACTION_VIEW)
-                intent.setDataAndType(fileUri, "image/*")
-                intent.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                context.startActivity(intent)
+                Log.d("FSTASK", "YIPEE!")
             }
         }
 
