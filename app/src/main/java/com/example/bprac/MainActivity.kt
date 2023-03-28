@@ -11,8 +11,10 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.location.LocationManager
-import android.media.AudioAttributes
-import android.media.MediaPlayer
+import android.media.AudioFormat
+import android.media.AudioManager
+import android.media.AudioRecord
+import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.net.Uri
 import android.net.wifi.p2p.*
@@ -29,11 +31,8 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import java.io.*
 import java.net.InetAddress
-import java.net.InetSocketAddress
-import java.net.Socket
 import java.util.*
 import java.util.concurrent.Callable
-import java.util.concurrent.Executors
 
 
 class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, ConnectionInfoListener {
@@ -42,7 +41,23 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
     private var mediaRecorder: MediaRecorder? = null
     private var state: Boolean = false
     private var pushToggle: Boolean = false
-    var mMediaPlayer: MediaPlayer? = null //private?
+
+    // NEW AUDIO STUFF
+    private var bigBuffer: ByteArray = ByteArray(10000)
+    private var bufferIndex: Int = 0
+
+    @Volatile
+    private var currentlyRecording: Boolean = false
+    private var audioRecorder: AudioRecord? = null
+    private var recorderThread: Thread? = null
+
+    private var currentlyPlaying: Boolean  = false
+    private var audioPlayer: AudioTrack? = null
+    private var playerThread: Thread? = null
+
+    private var ClientPlayer: NetworkAmongus.FileClientAsyncTask? = null
+
+    // END NEW AUDIO STUFF
 
     private var manager: WifiP2pManager? = null
     private var isWifiP2pEnabled = false
@@ -71,7 +86,6 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
         this.isWifiP2pEnabled = isWifiP2pEnabled
     }
 
-
     public override fun onResume() {
         super.onResume()
         receiver = WiFiDirectBroadcastReceiver(manager!!, channel!!, this)
@@ -83,44 +97,7 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
         unregisterReceiver(receiver)
     }
 
-    public fun connect(config: WifiP2pConfig) {
-        try {
-            manager!!.connect(channel, config, object : ActionListener {
-
-                override fun onSuccess() {
-                    Log.d(TAG, "COnnect yay!");
-                }
-
-                override fun onFailure(reason: Int) {
-                    Toast.makeText(this@MainActivity, "Connect failed. Retry.", Toast.LENGTH_SHORT)
-                        .show();
-                }
-            })
-        }
-        catch (e: SecurityException)
-        {
-            Log.d(TAG, "Amongus yay!");
-        }
-    }
-
-    public fun disconnect() {
-
-        manager!!.removeGroup(channel, object : ActionListener {
-
-            override fun onFailure(reasonCode: Int) {
-                Log.d(TAG, "Disconnect failed. Reason :$reasonCode")
-
-            }
-
-            override fun onSuccess() {
-                Log.d(TAG, "Disconnect yay!")
-            }
-
-        })
-    }
-
     override fun onChannelDisconnected() {
-        // we will try once more
         if (manager != null && !retryChannel) {
             Toast.makeText(this, "Channel lost. Trying again", Toast.LENGTH_LONG).show()
             retryChannel = true
@@ -131,137 +108,71 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
                 Toast.LENGTH_LONG).show()
         }
     }
-/*
-    override fun cancelDisconnect() {
 
-        /*
-         * A cancel abort request by user. Disconnect i.e. removeGroup if
-         * already connected. Else, request WifiP2pManager to abort the ongoing
-         * request
-         */
-        if (manager != null) {
-            val fragment = supportFragmentManager
-                .findFragmentById(R.id.frag_list) as DeviceListFragment
-            if (fragment.device == null || fragment.device!!.status == WifiP2pDevice.CONNECTED) {
-                disconnect()
-            } else if (fragment.device!!.status == WifiP2pDevice.AVAILABLE || fragment.device!!.status == WifiP2pDevice.INVITED) {
-
-                manager!!.cancelConnect(channel, object : ActionListener {
-
-                    override fun onSuccess() {
-                        Toast.makeText(this@MainActivity, "Aborting connection",
-                            Toast.LENGTH_SHORT).show()
-                    }
-
-                    override fun onFailure(reasonCode: Int) {
-                        Toast.makeText(this@MainActivity,
-                            "Connect abort request failed. Reason Code: $reasonCode",
-                            Toast.LENGTH_SHORT).show()
-                    }
-                })
-            }
-        }
-    }
-*/
-
-    private fun createGroup() {
-        try {
-            manager?.also { manager ->
-
-                manager.requestGroupInfo(channel) { group ->
-                    Log.d(TAG, "createGroup group:$group")
-                }
-
-                manager.createGroup(channel, object : ActionListener {
-                    override fun onSuccess() {
-                        Toast.makeText(this@MainActivity, "create group success", Toast.LENGTH_SHORT).show()
-                    }
-
-                    override fun onFailure(reason: Int) {
-                        Toast.makeText(this@MainActivity, "create group failure", Toast.LENGTH_SHORT).show()
-                    }
-                })
-            }
-        }
-        catch(e: SecurityException)
-        {
-            Log.d(TAG, "You are stupid and dumb");
-        }
-    }
-
-    fun playRecording(uri: Uri) {
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            mediaRecorder = MediaRecorder(this)
-        }
-        else {
-            mediaRecorder = MediaRecorder()//depreciated, using anyways for now
-        }
-
-        mediaRecorder?.setAudioSource(MediaRecorder.AudioSource.DEFAULT)
-        mediaRecorder?.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4) //correct format?
-        mediaRecorder?.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)    //correct encoder?
-        mediaRecorder?.setOutputFile(output)
-
-        var mMediaPlayer: MediaPlayer? = null
-        try {
-            mMediaPlayer = MediaPlayer().apply {
-                setDataSource(application, uri)
-                setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_MEDIA)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                        .build()
-                )
-                prepare()
-                start()
-            }
-        } catch (exception: IOException) {
-            mMediaPlayer?.release()
-            mMediaPlayer = null
-        }
-
-
+    fun playRecording() {
+        audioPlayer = AudioTrack(
+            AudioManager.STREAM_SYSTEM,
+            8192,
+            AudioFormat.CHANNEL_OUT_MONO,
+            AudioFormat.ENCODING_PCM_16BIT,
+            10000,
+            AudioTrack.MODE_STATIC
+        )
+        audioPlayer!!.write(bigBuffer, 0, 10000)
+        audioPlayer!!.play()
     }
 
 
     private fun startRecording() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            mediaRecorder = MediaRecorder(this)
-        }
-        else {
-            mediaRecorder = MediaRecorder()//depreciated, using anyways for now
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            return
         }
 
-        mediaRecorder?.setAudioSource(MediaRecorder.AudioSource.DEFAULT)
-        mediaRecorder?.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4) //correct format?
-        mediaRecorder?.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)    //correct encoder?
-        mediaRecorder?.setOutputFile(output)
+        audioRecorder = AudioRecord(
+            MediaRecorder.AudioSource.MIC,
+            8192,
+            AudioFormat.CHANNEL_IN_MONO,
+            AudioFormat.ENCODING_PCM_16BIT,
+            4096
+        )
 
-        try {
-            mediaRecorder?.prepare()
-            mediaRecorder?.start()
-            state = true
-            Toast.makeText(this, "Recording started!", Toast.LENGTH_SHORT).show()
-        } catch (e: IllegalStateException) {
-            e.printStackTrace()
-        } catch (e: IOException) {
-            e.printStackTrace()
+        audioRecorder!!.startRecording()
+        currentlyRecording = true
+        recorderThread = Thread({ readAudioData() }, "AudioRecorder Thread")
+        recorderThread!!.start()
+    }
+
+    private fun readAudioData() {
+        while (currentlyRecording) {
+            try {
+                val amountToRead = 4096
+
+                if (amountToRead + bufferIndex > 10000) {
+                    audioRecorder!!.read(bigBuffer, bufferIndex, 10000 - bufferIndex)
+                    bufferIndex = amountToRead - (10000 - bufferIndex)
+                    audioRecorder!!.read(bigBuffer, 0, bufferIndex)
+                } else {
+                    audioRecorder!!.read(bigBuffer, bufferIndex, amountToRead)
+                    bufferIndex += amountToRead
+                }
+
+
+                Log.d("AUDIO", "READ TO "+ bufferIndex + "!")
+            }
+            catch (exception: Exception) {
+                exception.printStackTrace()
+            }
         }
     }
 
-    private fun stopRecording(){
-        if(state){
-            mediaRecorder?.stop()
-            mediaRecorder?.reset()
-            mediaRecorder?.release()
-            mediaRecorder = null
-            state = false
-            Toast.makeText(this, "stopping recording", Toast.LENGTH_SHORT).show()
+    private fun stopRecording() {
+        if (audioRecorder != null) {
+            currentlyRecording = false
+            audioRecorder!!.stop()
+            audioRecorder!!.release()
+            audioRecorder = null
 
-            attemptSendAudio()
-        }else{
-            Toast.makeText(this, "You are not recording right now!", Toast.LENGTH_SHORT).show()
+            recorderThread = null
         }
     }
     @SuppressLint("MissingInflatedId") //cant remember what this is
@@ -310,7 +221,7 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
 
         var lmanager = getSystemService(LOCATION_SERVICE) as LocationManager
         if (!lmanager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-            Toast.makeText(this, "please enable location servicedededes", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "please enable location services", Toast.LENGTH_LONG).show()
             startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
         }
 
@@ -336,9 +247,9 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
                 ActivityCompat.requestPermissions(this, permissions,0)
             } else {
                 if (pushToggle)
-                    stopRecording()
+                    ClientPlayer!!.setRecording(false)
                 else
-                    startRecording()
+                    ClientPlayer!!.setRecording(true)
 
                 pushToggle = !pushToggle
             }
@@ -349,7 +260,6 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
             //Toast.makeText(this, "Toggling audio input mode (TBC)", Toast.LENGTH_SHORT).show()
             //Temporarily using this as a stop recording button
             //stopRecording()
-            attemptSendAudio()
         }
 
         val changeChannel = findViewById<Button>(R.id.change_channel)
@@ -361,7 +271,7 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
             //val file = File(Environment.getExternalStorageDirectory(), "recording.mp3")
             val file = File(path) //File(getFilesDir().toString() + "/recording.mp3")
             val uri = Uri.fromFile(file)
-            playRecording(uri)
+            playRecording()
         }
 
     }
@@ -383,14 +293,6 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
             return false
         }
         return true
-    }
-    fun attemptSendAudio() {
-        Log.d(TAG, "Attempting audio transmission...")
-        NetworkAmongus.FileClientAsyncTask(this@MainActivity, output!!, hostAddress!!, sendPort).execute()
-    }
-
-    fun playAudio() {
-        playRecording(Uri.fromFile(File(output)))
     }
 
     override fun onPeersAvailable(peerList: WifiP2pDeviceList?) {
@@ -439,11 +341,19 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
     }
 
     fun startServer() {
-        Thread(NetworkSus.FileServerAsyncTask(output!!, receivePort, ::playAudio)).start()
+        Log.d("BIGBOY", "HUGE STARTING!!!")
+        val serverThread = Thread(NetworkSus.FileServerAsyncTask(receivePort))
+        serverThread.priority = 10
+        serverThread.start()
+        Thread.sleep(1000)
+        ClientPlayer = NetworkAmongus.FileClientAsyncTask(this@MainActivity, hostAddress!!, sendPort)
+        val clientThread = Thread(ClientPlayer)
+        clientThread.priority = 9
+        clientThread.start()
     }
 
     override fun onConnectionInfoAvailable(info: WifiP2pInfo?) {
-        Log.d("CONNECT", "EITHER TBH")
+        Log.d("CONNECT", "GOT INFO")
         if (info!!.groupFormed && info!!.isGroupOwner) {
             Log.d(TAG, "I AM SERVER!")
             sendPort = 8998

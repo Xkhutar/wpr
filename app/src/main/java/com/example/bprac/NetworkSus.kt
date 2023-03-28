@@ -2,6 +2,9 @@ package com.example.bprac
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioFormat
+import android.media.AudioManager
+import android.media.AudioTrack
 import android.net.Uri
 import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pInfo
@@ -39,38 +42,54 @@ class NetworkSus {
         }
 
         protected override fun onPostExecute(result: String?) {
-            Log.d("123", "YIPEE!")
             onTerminate()
         }
     }
 
-    class FileServerAsyncTask(private val path: String, private val port: Int, private val onFinish: () -> Unit) : Runnable {
+    class FileServerAsyncTask(private val port: Int) : Runnable {
 
         override fun run() {
             while (true) {
-                Log.d("CHILLING", "LOL")
+                Log.d(TAG, "Audio receiver started.")
                 try {
+                    val buffer = ByteArray(4096)
                     val serverSocket = ServerSocket(port)
-                    Log.d("FSTASK", "Server: Socket opened")
                     val client = serverSocket.accept()
-                    Log.d("FSTASK", "Server: connection done")
-                    val file = File(path)
-                    if (file.exists()) file.delete()
-                    file.createNewFile()
-                    Log.d("FSTASK", "server: copying files $file")
-                    val inputstream = client.getInputStream()
-                    copyFile(inputstream, FileOutputStream(file))
-                    serverSocket.close()
-                    onFinish()
+                    val inputStream = client.getInputStream()
+                    val audioPlayer = AudioTrack(
+                        AudioManager.STREAM_SYSTEM,
+                        8192,
+                        AudioFormat.CHANNEL_OUT_MONO,
+                        AudioFormat.ENCODING_PCM_16BIT,
+                        40960,
+                        AudioTrack.MODE_STREAM
+                    )
+
+                    var bytesRead = 0
+
+                    while (true) {
+
+                        var numberBytes = inputStream.read(buffer, bytesRead, 4096 - bytesRead)
+                        if (numberBytes > 0) {
+                            if (bytesRead + numberBytes == 4096) {
+                                audioPlayer!!.write(buffer, 0, 4096)
+                                bytesRead = 0
+                                numberBytes = 0
+                                audioPlayer!!.play()
+                            }
+
+                            bytesRead += numberBytes
+                        }
+                    }
                 } catch (e: IOException) {
-                    Log.e("FSTASK", (e.message)!!)
+                    Log.e(TAG, (e.message)!!)
                 }
             }
         }
     }
 
     companion object {
-        protected val CHOOSE_FILE_RESULT_CODE = 20
+        private const val TAG = "S-TASK"
         fun copyFile(inputStream: InputStream, out: OutputStream): Boolean {
             val buf = ByteArray(1024)
             var len: Int
@@ -81,7 +100,7 @@ class NetworkSus {
                 out.close()
                 inputStream.close()
             } catch (e: IOException) {
-                Log.d("FSTASK", e.toString())
+                Log.d(TAG, e.toString())
                 return false
             }
             return true

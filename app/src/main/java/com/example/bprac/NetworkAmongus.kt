@@ -1,7 +1,12 @@
 package com.example.bprac
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.media.AudioFormat
+import android.media.AudioRecord
+import android.media.MediaRecorder
 import android.net.Uri
 import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pInfo
@@ -11,6 +16,7 @@ import android.util.Log
 import android.view.View
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContentProviderCompat.requireContext
 import androidx.core.content.FileProvider
 import java.io.*
@@ -20,16 +26,6 @@ import java.net.ServerSocket
 import java.net.Socket
 
 class NetworkAmongus {
-
-    private var device: WifiP2pDevice? = null
-    private var info: WifiP2pInfo? = null
-    private var activity: AppCompatActivity? = null
-
-
-    constructor(activity: AppCompatActivity) {
-        this.activity = activity
-    }
-
     class ClientHandshake(private val port: Int, private val hostAddress: InetAddress, private val onTerminate: () -> Unit) : AsyncTask<Void?, Void?, String?>()
     {
         protected override fun doInBackground(vararg p0: Void?): String? {
@@ -47,16 +43,16 @@ class NetworkAmongus {
         }
     }
 
-    class FileClientAsyncTask(private val context: Context, private val path: String, private val hostAddress: InetAddress, private val commonPort: Int) : AsyncTask<Void?, Void?, String?>() {
-        /**
-         * @param context
-         * @param statusText
-         */
+    class FileClientAsyncTask(private val context: Context, private val hostAddress: InetAddress, private val commonPort: Int) : Runnable {
+        @Volatile private var currentlyRecording: Boolean = false
 
-        protected override fun doInBackground(vararg p0: Void?): String? {
-            Log.d(TAG, "YOU TRIED LMAO!")
-            val file = File(path) //File(getFilesDir().toString() + "/recording.mp3")
-            val fileUri = Uri.fromFile(file)
+        private var buffer: ByteArray = ByteArray(4096)
+
+        public fun setRecording(value: Boolean) {
+            currentlyRecording = value
+        }
+        override fun run() {
+            Log.d(TAG, "Attempting to write file to remote...")
             val socket = Socket()
 
             try {
@@ -67,48 +63,38 @@ class NetworkAmongus {
 
                 Log.d(TAG, "Client socket - " + socket.isConnected)
                 val outputStream = socket.getOutputStream()
-                val cr = context.contentResolver
-                var inputStream: InputStream? = null
-                try {
-                    inputStream = cr.openInputStream(fileUri)
-                } catch (e: FileNotFoundException) {
-                    Log.d(TAG, e.message!!)
+
+                if (ActivityCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                    return
                 }
 
-                copyFile(inputStream!!, outputStream)
+                val audioRecorder = AudioRecord(
+                    MediaRecorder.AudioSource.MIC,
+                    8192,
+                    AudioFormat.CHANNEL_IN_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT,
+                    4096
+                )
 
-                Log.d(TAG, "Client: Data written")
-            } catch (e: IOException) {
-                Log.e(TAG, e.stackTraceToString())
-            } finally {
-                if (socket != null) {
-                    if (socket.isConnected) {
-                        try {
-                            socket.close()
-                        } catch (e: IOException) {
-                            // Give up
-                            e.printStackTrace()
+                audioRecorder!!.startRecording()
+
+                try {
+                    while (true) {
+                        if (currentlyRecording) {
+                            val amountToRead = 4096
+                            audioRecorder!!.read(buffer, 0, 4096)
+                            outputStream.write(buffer)
                         }
-
                     }
                 }
-            }
+                catch (exception: Exception) {
+                    exception.printStackTrace()
+                }
 
-            return "YIPEE";
-        }
-
-        /*
-         * (non-Javadoc)
-         * @see android.os.AsyncTask#onPostExecute(java.lang.Object)
-         */
-        protected override fun onPostExecute(result: String?) {
-            if (result != null) {
-                Log.d("FSTASK", "YIPEE!")
+            } catch (e: IOException) {
+                Log.e(TAG, e.stackTraceToString())
             }
         }
-
-
-
     }
 
     companion object {
@@ -123,7 +109,7 @@ class NetworkAmongus {
                 out.close()
                 inputStream.close()
             } catch (e: IOException) {
-                Log.d("FSTASK", e.toString())
+                Log.d(TAG, e.toString())
                 return false
             }
             return true
