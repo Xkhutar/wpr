@@ -20,8 +20,7 @@ import java.io.*
 import java.net.InetAddress
 import java.net.ServerSocket
 
-class NetworkSus {
-
+public class NetworkSus {
     private var device: WifiP2pDevice? = null
     private var info: WifiP2pInfo? = null
     private var activity: AppCompatActivity? = null
@@ -52,7 +51,7 @@ class NetworkSus {
             while (true) {
                 Log.d(TAG, "Audio receiver started.")
                 try {
-                    val buffer = ByteArray(4096)
+                    val buffer = ByteArray(PACKET_SIZE)
                     val serverSocket = ServerSocket(port)
                     val client = serverSocket.accept()
                     val inputStream = client.getInputStream()
@@ -61,7 +60,7 @@ class NetworkSus {
                         8192,
                         AudioFormat.CHANNEL_OUT_MONO,
                         AudioFormat.ENCODING_PCM_16BIT,
-                        40960,
+                        PACKET_SIZE*10,
                         AudioTrack.MODE_STREAM
                     )
 
@@ -69,10 +68,10 @@ class NetworkSus {
 
                     while (true) {
 
-                        var numberBytes = inputStream.read(buffer, bytesRead, 4096 - bytesRead)
+                        var numberBytes = inputStream.read(buffer, bytesRead, PACKET_SIZE - bytesRead)
                         if (numberBytes > 0) {
-                            if (bytesRead + numberBytes == 4096) {
-                                audioPlayer!!.write(buffer, 0, 4096)
+                            if (bytesRead + numberBytes == PACKET_SIZE) {
+                                audioPlayer!!.write(buffer, 0, PACKET_SIZE)
                                 bytesRead = 0
                                 numberBytes = 0
                                 audioPlayer!!.play()
@@ -90,6 +89,7 @@ class NetworkSus {
 
     companion object {
         private const val TAG = "S-TASK"
+        public const val PACKET_SIZE = 128;
         fun copyFile(inputStream: InputStream, out: OutputStream): Boolean {
             val buf = ByteArray(1024)
             var len: Int

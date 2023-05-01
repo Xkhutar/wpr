@@ -46,7 +46,7 @@ class NetworkAmongus {
     class FileClientAsyncTask(private val context: Context, private val hostAddress: InetAddress, private val commonPort: Int) : Runnable {
         @Volatile private var currentlyRecording: Boolean = false
 
-        private var buffer: ByteArray = ByteArray(4096)
+        private var buffer: ByteArray = ByteArray(NetworkSus.PACKET_SIZE)
 
         public fun setRecording(value: Boolean) {
             currentlyRecording = value
@@ -73,7 +73,7 @@ class NetworkAmongus {
                     8192,
                     AudioFormat.CHANNEL_IN_MONO,
                     AudioFormat.ENCODING_PCM_16BIT,
-                    4096
+                    NetworkSus.PACKET_SIZE
                 )
 
                 audioRecorder!!.startRecording()
@@ -81,8 +81,8 @@ class NetworkAmongus {
                 try {
                     while (true) {
                         if (currentlyRecording) {
-                            val amountToRead = 4096
-                            audioRecorder!!.read(buffer, 0, 4096)
+                            val amountToRead = NetworkSus.PACKET_SIZE
+                            audioRecorder!!.read(buffer, 0, NetworkSus.PACKET_SIZE)
                             outputStream.write(buffer)
                         }
                     }
