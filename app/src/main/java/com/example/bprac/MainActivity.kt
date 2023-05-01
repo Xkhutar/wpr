@@ -247,9 +247,9 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
                 ActivityCompat.requestPermissions(this, permissions,0)
             } else {
                 if (pushToggle)
-                    ClientPlayer!!.setRecording(false)
+                    ClientPlayer?.setRecording(false)
                 else
-                    ClientPlayer!!.setRecording(true)
+                    ClientPlayer?.setRecording(true)
 
                 pushToggle = !pushToggle
             }

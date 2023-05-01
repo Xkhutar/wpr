@@ -30,11 +30,25 @@ class NetworkAmongus {
     {
         protected override fun doInBackground(vararg p0: Void?): String? {
             Log.d("HANDSHAKE","CLIENT")
-            val socket = Socket()
-            socket.reuseAddress = true
-            socket.bind(null)
-            socket.connect(InetSocketAddress(hostAddress, port), 10000)
-            socket.close()
+
+            while(true) {
+                try{
+                    Log.d(TAG,"CTRY "+hostAddress);
+                    val socket = Socket()
+                    socket.reuseAddress = true
+                    socket.bind(null)
+                    socket.connect(InetSocketAddress(hostAddress, port), 10000)
+                    socket.close()
+                    break
+                }
+                catch (e: Exception)
+                {
+                    Log.d(TAG,"CFAIl");
+                    Thread.sleep(250);
+                }
+
+            }
+
             return "YIPEE"
         }
 

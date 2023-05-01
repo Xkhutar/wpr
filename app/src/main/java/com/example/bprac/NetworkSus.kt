@@ -89,7 +89,7 @@ public class NetworkSus {
 
     companion object {
         private const val TAG = "S-TASK"
-        public const val PACKET_SIZE = 128;
+        public const val PACKET_SIZE = 64;
         fun copyFile(inputStream: InputStream, out: OutputStream): Boolean {
             val buf = ByteArray(1024)
             var len: Int
