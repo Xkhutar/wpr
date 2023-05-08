@@ -26,17 +26,18 @@ import com.example.bprac.R
 import android.net.NetworkInfo
 import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pManager
-import android.net.wifi.p2p.WifiP2pManager.Channel
-import android.net.wifi.p2p.WifiP2pManager.PeerListListener
+import android.net.wifi.p2p.WifiP2pManager.*
 import android.os.Parcelable
 import android.util.Log
 import androidx.core.app.ActivityCompat
 
 
-class WiFiDirectBroadcastReceiver(manager: WifiP2pManager, channel: WifiP2pManager.Channel, activity: MainActivity) : BroadcastReceiver() {
+class WiFiDirectBroadcastReceiver(manager: WifiP2pManager, channel: Channel, onGetDevice: (String) -> Unit, activity: MainActivity) : BroadcastReceiver() {
     private var manager: WifiP2pManager? = null
     private var channel: WifiP2pManager.Channel? = null
     private var activity: MainActivity? = null
+    public  var device: WifiP2pDevice? = null
+    public var onGetDevice: (String) -> Unit
 
     /**
      * @param manager WifiP2pManager system service
@@ -48,6 +49,7 @@ class WiFiDirectBroadcastReceiver(manager: WifiP2pManager, channel: WifiP2pManag
         this.manager = manager
         this.channel = channel
         this.activity = activity
+        this.onGetDevice = onGetDevice
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -74,7 +76,9 @@ class WiFiDirectBroadcastReceiver(manager: WifiP2pManager, channel: WifiP2pManag
             Log.d(TAG, "PEERS ARE AMONG US")
 
         } else if (WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION == action) {
-            Log.d(TAG, "DEVICE SUSD - ACTIVITY")
+            device = intent.getParcelableExtra(EXTRA_WIFI_P2P_DEVICE)!!
+            Log.d("NAME", "MY NAME IS " + device!!.deviceName)
+            onGetDevice(device!!.deviceName)
         } else if (WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION == action) {
             manager!!.requestConnectionInfo(channel!!, activity!!)
         }

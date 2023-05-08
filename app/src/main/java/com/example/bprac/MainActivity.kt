@@ -19,6 +19,8 @@ import android.media.MediaRecorder
 import android.net.Uri
 import android.net.wifi.p2p.*
 import android.net.wifi.p2p.WifiP2pManager.*
+import android.net.wifi.p2p.nsd.WifiP2pDnsSdServiceInfo
+import android.net.wifi.p2p.nsd.WifiP2pDnsSdServiceRequest
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
@@ -65,13 +67,17 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
     public var networkSus: NetworkSus? = null
 
     private val peers = mutableListOf<WifiP2pDevice>()
-    private var currentPeer: WifiP2pDevice? = null
+    private var currentPeers = mutableListOf<WifiP2pDevice>()
 
     public var hostAddress: InetAddress? = null
     private var sendPort: Int = 0
     private var receivePort: Int = 0
 
     private var server: Callable<Any>? = null
+    // NEW CONNECTION STUFF
+    private var validPeerNames = mutableListOf<String>()
+
+    // END NEW CONNECTION
 
     private val intentFilter = IntentFilter().apply {
         addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION)
@@ -88,7 +94,7 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
 
     public override fun onResume() {
         super.onResume()
-        receiver = WiFiDirectBroadcastReceiver(manager!!, channel!!, this)
+        receiver = WiFiDirectBroadcastReceiver(manager!!, channel!!, this::startRegistration, this)
         registerReceiver(receiver, intentFilter)
     }
 
@@ -219,6 +225,8 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
         manager = getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
         channel = manager?.initialize(this, mainLooper, this)
 
+
+
         var lmanager = getSystemService(LOCATION_SERVICE) as LocationManager
         if (!lmanager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
             Toast.makeText(this, "please enable location services", Toast.LENGTH_LONG).show()
@@ -234,6 +242,8 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
                 Toast.makeText(this@MainActivity, "Sussy... " + reasonCode, Toast.LENGTH_SHORT).show()
             }
         })
+
+        discoverService()
 
         networkSus = NetworkSus(this)
 
@@ -264,14 +274,16 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
 
         val changeChannel = findViewById<Button>(R.id.change_channel)
         changeChannel.setOnClickListener {
-            //val intent = Intent(this,AppStart::class.java)
-            // startActivity(intent)
-            //these two lines are the correct function, but temporarily using this as the playback button
+            manager!!.discoverPeers(channel, object : WifiP2pManager.ActionListener {
+                override fun onSuccess() {
+                    Toast.makeText(this@MainActivity, "Amongus", Toast.LENGTH_SHORT).show()
+                }
 
-            //val file = File(Environment.getExternalStorageDirectory(), "recording.mp3")
-            val file = File(path) //File(getFilesDir().toString() + "/recording.mp3")
-            val uri = Uri.fromFile(file)
-            playRecording()
+                override fun onFailure(reasonCode: Int) {
+                    Toast.makeText(this@MainActivity, "Sussy... " + reasonCode, Toast.LENGTH_SHORT).show()
+                }
+            })
+            Log.d("REGGIE", "HELLO?")
         }
 
     }
@@ -295,44 +307,149 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
         return true
     }
 
-    override fun onPeersAvailable(peerList: WifiP2pDeviceList?) {
-        val refreshedPeers = peerList!!.deviceList
-        if (refreshedPeers != peers) {
-            peers.clear()
-            peers.addAll(refreshedPeers)
+    private fun startRegistration(deviceName: String) {
+        Log.d("REGGIE", "MY BODY IS!")
 
-            for (device in peers)
-            {
-                if(device.deviceName.contains("WPR") && (currentPeer == null || currentPeer!!.deviceName != device.deviceName))
-                {
-                    currentPeer = device
-                    Log.d("PEER:", "Found my peer!!! -> "+currentPeer!!.deviceName)
+        val record: Map<String, String> = mapOf(
+            "magic" to "connect me please!",
+            "deviceName" to deviceName
+        )
+        Log.d("RV", "VAL: "+record["deviceName"])
 
-                    val config = WifiP2pConfig()
-                    config.deviceAddress = device.deviceAddress
-                    channel?.also { channel ->
-                        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                            return
-                        }
-                        manager?.connect(channel, config, object : WifiP2pManager.ActionListener {
 
-                            override fun onSuccess() {
-                                Log.d("PEER:", "Connected to "+device.deviceName+"!")
-                            }
+        val serviceInfo = WifiP2pDnsSdServiceInfo.newInstance("_wpr", "_presence._tcp", record)
 
-                            override fun onFailure(reason: Int) {
-                                Log.d("PEER:", "Could not sus...")
-                            }
-                        }
-                        )}
 
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        manager!!.addLocalService(channel, serviceInfo, object : WifiP2pManager.ActionListener {
+            override fun onSuccess() {
+                Log.d("REGGIE", "ADDED LOCAL!!")
+            }
+
+            override fun onFailure(arg0: Int) {
+                Log.d("REGGIE", "FAILD IDIOT!!")
+            }
+        })
+    }
+
+    private fun discoverService() {
+        val txtListener = DnsSdTxtRecordListener { fullDomain, record, device ->
+            Log.d("REGGIE", "YAY")
+            record["magic"]?.also {
+                if (record["magic"] == "connect me please!") {
+                    var deviceName = device.deviceName
+                    if (deviceName == "") {
+                        deviceName = record["deviceName"]
+                    }
+                    validPeerNames.add(deviceName)
+                    Log.d("REGGIE", "Valid peer notified: " + deviceName)
+                    connectValidPeers()
                 }
             }
         }
 
-        if (peers.isEmpty()) {
-            Log.d(TAG, "No devices found")
+        val servListener = DnsSdServiceResponseListener { instanceName, registrationType, resourceType ->
+            Log.d("REGGIE", "onBonjourDEEZ $instanceName")
         }
+
+        manager!!.setDnsSdResponseListeners(channel, servListener, txtListener)
+
+        val serviceRequest = WifiP2pDnsSdServiceRequest.newInstance()
+        manager!!.addServiceRequest(
+            channel,
+            serviceRequest,
+            object : WifiP2pManager.ActionListener {
+                override fun onSuccess() {
+                    Log.d("REGGIE", "DID LISTEN!!");
+                }
+
+                override fun onFailure(code: Int) {
+                    Log.d("REGGIE", "DID NOT SHUT UP!!!");
+                }
+            }
+        )
+
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        manager!!.discoverServices(
+            channel,
+            object : WifiP2pManager.ActionListener {
+                override fun onSuccess() {
+                    // Success!
+                }
+
+                override fun onFailure(code: Int) {
+                    // Command failed. Check for P2P_UNSUPPORTED, ERROR, or BUSY
+                    when (code) {
+                        WifiP2pManager.P2P_UNSUPPORTED -> {
+                            Log.d(TAG, "Wi-Fi Direct isn't supported on this device.")
+                        }
+                    }
+                }
+            }
+        )
+
+    }
+
+    private fun connectValidPeers()
+    {
+        for (device in peers) {
+            //Log.d("PEER:", "Pogtential->"+device.deviceName);
+            if (validPeerNames.contains(device.deviceName) && currentPeers.none { peer -> peer.deviceName == device.deviceName }) {
+                currentPeers.add(device);
+                Log.d("PEER:", "Found peer!!! -> "+device.deviceName)
+
+
+                val config = WifiP2pConfig()
+                config.deviceAddress = device.deviceAddress
+                channel?.also { channel ->
+                    Log.d("PEER", "GETTING OWNED?")
+                    if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                        return
+                    }
+                    Log.d("PEER", "ATTEMPTED CONNECTION TO "+device.deviceName)
+                    manager?.connect(channel, config, object : ActionListener {
+
+                        override fun onSuccess() {
+                            Log.d("PEER:", "Connected to "+device.deviceName+"!")
+                        }
+
+                        override fun onFailure(reason: Int) {
+                            Log.d("PEER:", "Could not sus... "+reason)
+                            if (ActivityCompat.checkSelfPermission(this@MainActivity, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                                return
+                            }
+                            manager?.connect(channel, config, object : ActionListener {
+
+                                override fun onSuccess() {
+                                    Log.d("PEER:", "Connected to "+device.deviceName+"!")
+                                }
+
+                                override fun onFailure(reason: Int) {
+                                    Log.d("PEER:", "Could not sus... "+reason)
+                                }
+                            })
+                        }
+                    })
+                }
+            }
+        }
+    }
+    override fun onPeersAvailable(peerList: WifiP2pDeviceList?) {
+        peers.clear()
+        peers.addAll(peerList!!.deviceList)
+        connectValidPeers()
     }
 
     fun setAddress(hostAddress: InetAddress) {
@@ -354,6 +471,7 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
 
     override fun onConnectionInfoAvailable(info: WifiP2pInfo?) {
         Log.d("CONNECT", "GOT INFO")
+        Log.d("CONNECT", "GFORM? "+info!!.groupFormed+" ZIMBA? "+info!!.groupOwnerAddress)
         if (info!!.groupFormed && info!!.isGroupOwner) {
             Log.d(TAG, "I AM SERVER!")
             sendPort = 8998
