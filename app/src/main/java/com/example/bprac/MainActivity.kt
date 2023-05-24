@@ -52,11 +52,7 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
     private var currentlyRecording: Boolean = false
     private var audioRecorder: AudioRecord? = null
     private var recorderThread: Thread? = null
-
-    private var currentlyPlaying: Boolean  = false
     private var audioPlayer: AudioTrack? = null
-    private var playerThread: Thread? = null
-
     private var ClientPlayer: NetworkAmongus.FileClientAsyncTask? = null
 
     // END NEW AUDIO STUFF
@@ -94,9 +90,11 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
 
     public override fun onResume() {
         super.onResume()
-        receiver = WiFiDirectBroadcastReceiver(manager!!, channel!!, this::startRegistration, this)
+        receiver = WiFiDirectBroadcastReceiver(manager!!, channel!!, this::stfu, this)
         registerReceiver(receiver, intentFilter)
     }
+
+    public fun stfu(poop: String){}
 
     public override fun onPause() {
         super.onPause()
@@ -115,72 +113,8 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
         }
     }
 
-    fun playRecording() {
-        audioPlayer = AudioTrack(
-            AudioManager.STREAM_SYSTEM,
-            8192,
-            AudioFormat.CHANNEL_OUT_MONO,
-            AudioFormat.ENCODING_PCM_16BIT,
-            10000,
-            AudioTrack.MODE_STATIC
-        )
-        audioPlayer!!.write(bigBuffer, 0, 10000)
-        audioPlayer!!.play()
-    }
 
 
-    private fun startRecording() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            return
-        }
-
-        audioRecorder = AudioRecord(
-            MediaRecorder.AudioSource.MIC,
-            8192,
-            AudioFormat.CHANNEL_IN_MONO,
-            AudioFormat.ENCODING_PCM_16BIT,
-            4096
-        )
-
-        audioRecorder!!.startRecording()
-        currentlyRecording = true
-        recorderThread = Thread({ readAudioData() }, "AudioRecorder Thread")
-        recorderThread!!.start()
-    }
-
-    private fun readAudioData() {
-        while (currentlyRecording) {
-            try {
-                val amountToRead = 4096
-
-                if (amountToRead + bufferIndex > 10000) {
-                    audioRecorder!!.read(bigBuffer, bufferIndex, 10000 - bufferIndex)
-                    bufferIndex = amountToRead - (10000 - bufferIndex)
-                    audioRecorder!!.read(bigBuffer, 0, bufferIndex)
-                } else {
-                    audioRecorder!!.read(bigBuffer, bufferIndex, amountToRead)
-                    bufferIndex += amountToRead
-                }
-
-
-                Log.d("AUDIO", "READ TO "+ bufferIndex + "!")
-            }
-            catch (exception: Exception) {
-                exception.printStackTrace()
-            }
-        }
-    }
-
-    private fun stopRecording() {
-        if (audioRecorder != null) {
-            currentlyRecording = false
-            audioRecorder!!.stop()
-            audioRecorder!!.release()
-            audioRecorder = null
-
-            recorderThread = null
-        }
-    }
     @SuppressLint("MissingInflatedId") //cant remember what this is
     @Override //not sure why i needed this either
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -243,7 +177,7 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
             }
         })
 
-        discoverService()
+        //discoverService()
 
         networkSus = NetworkSus(this)
 
@@ -291,22 +225,8 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
     companion object {
         private const val TAG = "wpr"
     }
-    fun copyFile(inputStream: InputStream, out: OutputStream): Boolean {
-        val buf = ByteArray(1024)
-        var len: Int
-        try {
-            while ((inputStream.read(buf).also { len = it }) != -1) {
-                out.write(buf, 0, len)
-            }
-            out.close()
-            inputStream.close()
-        } catch (e: IOException) {
-            Log.d("FSTASK", e.toString())
-            return false
-        }
-        return true
-    }
 
+    /*
     private fun startRegistration(deviceName: String) {
         Log.d("REGGIE", "MY BODY IS!")
 
@@ -401,12 +321,14 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
         )
 
     }
+    */
+
 
     private fun connectValidPeers()
     {
         for (device in peers) {
             //Log.d("PEER:", "Pogtential->"+device.deviceName);
-            if (validPeerNames.contains(device.deviceName) && currentPeers.none { peer -> peer.deviceName == device.deviceName }) {
+            if (device.deviceName.contains("WPR") && currentPeers.none { peer -> peer.deviceName == device.deviceName }) {
                 currentPeers.add(device);
                 Log.d("PEER:", "Found peer!!! -> "+device.deviceName)
 
@@ -459,6 +381,7 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
 
     fun startServer() {
         Log.d("BIGBOY", "HUGE STARTING!!!")
+        return;
         val serverThread = Thread(NetworkSus.FileServerAsyncTask(receivePort))
         serverThread.priority = 10
         serverThread.start()
@@ -474,14 +397,14 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
         Log.d("CONNECT", "GFORM? "+info!!.groupFormed+" ZIMBA? "+info!!.groupOwnerAddress)
         if (info!!.groupFormed && info!!.isGroupOwner) {
             Log.d(TAG, "I AM SERVER!")
-            sendPort = 8998
+            sendPort = 8989
             receivePort = 8989
             NetworkSus.ServerHandshake(receivePort, ::setAddress, ::startServer).execute()
         } else if (info!!.groupFormed) {
             Log.d(TAG, "I AM CLIENT!")
             hostAddress = info!!.groupOwnerAddress
             sendPort = 8989
-            receivePort = 8998
+            receivePort = 8989
             NetworkAmongus.ClientHandshake(sendPort, hostAddress!!, ::startServer).execute()
         }
     }
