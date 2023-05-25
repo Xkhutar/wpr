@@ -41,18 +41,9 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
 
     private var output: String? = null
     private var mediaRecorder: MediaRecorder? = null
-    private var state: Boolean = false
     private var pushToggle: Boolean = false
 
-    // NEW AUDIO STUFF
-    private var bigBuffer: ByteArray = ByteArray(10000)
-    private var bufferIndex: Int = 0
-
     @Volatile
-    private var currentlyRecording: Boolean = false
-    private var audioRecorder: AudioRecord? = null
-    private var recorderThread: Thread? = null
-    private var audioPlayer: AudioTrack? = null
     private var ClientPlayer: NetworkAmongus.FileClientAsyncTask? = null
 
     // END NEW AUDIO STUFF
@@ -69,11 +60,10 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
     private var sendPort: Int = 0
     private var receivePort: Int = 0
 
-    private var server: Callable<Any>? = null
-    // NEW CONNECTION STUFF
-    private var validPeerNames = mutableListOf<String>()
+
 
     // END NEW CONNECTION
+    private var networkCrewmate: NetworkImposter? = null
 
     private val intentFilter = IntentFilter().apply {
         addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION)
@@ -191,9 +181,9 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
                 ActivityCompat.requestPermissions(this, permissions,0)
             } else {
                 if (pushToggle)
-                    ClientPlayer?.setRecording(false)
+                    networkCrewmate?.setRecording(false)
                 else
-                    ClientPlayer?.setRecording(true)
+                    networkCrewmate?.setRecording(true)
 
                 pushToggle = !pushToggle
             }
@@ -378,10 +368,9 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
         Log.d(TAG, "Got client address! ->"+hostAddress.toString())
         this.hostAddress = hostAddress
     }
-
+/*
     fun startServer() {
         Log.d("BIGBOY", "HUGE STARTING!!!")
-        return;
         val serverThread = Thread(NetworkSus.FileServerAsyncTask(receivePort))
         serverThread.priority = 10
         serverThread.start()
@@ -390,22 +379,33 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
         val clientThread = Thread(ClientPlayer)
         clientThread.priority = 9
         clientThread.start()
+
+    }
+    */
+    fun startServer(isServer: Boolean) {
+        Log.d("BIGBOY", "HUGE STARTING!!!")
+        networkCrewmate = NetworkImposter(this, this@MainActivity, hostAddress!!, 8989)
+        Thread({
+            networkCrewmate!!.initiateConnection(isServer)
+        }).start()
     }
 
     override fun onConnectionInfoAvailable(info: WifiP2pInfo?) {
         Log.d("CONNECT", "GOT INFO")
         Log.d("CONNECT", "GFORM? "+info!!.groupFormed+" ZIMBA? "+info!!.groupOwnerAddress)
+
+
         if (info!!.groupFormed && info!!.isGroupOwner) {
             Log.d(TAG, "I AM SERVER!")
             sendPort = 8989
             receivePort = 8989
-            NetworkSus.ServerHandshake(receivePort, ::setAddress, ::startServer).execute()
+            NetworkImposter.ServerHandshake(receivePort, ::setAddress, ::startServer).execute()
         } else if (info!!.groupFormed) {
             Log.d(TAG, "I AM CLIENT!")
             hostAddress = info!!.groupOwnerAddress
             sendPort = 8989
             receivePort = 8989
-            NetworkAmongus.ClientHandshake(sendPort, hostAddress!!, ::startServer).execute()
+            NetworkImposter.ClientHandshake(sendPort, hostAddress!!, ::startServer).execute()
         }
     }
 }
