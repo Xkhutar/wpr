@@ -14,28 +14,38 @@ import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 
-class NetworkImposter(private val activity: AppCompatActivity, val context: Context, private val hostAddress: InetAddress, private val commonPort: Int) {
+class NetworkImposter(private val activity: AppCompatActivity, val context: Context, var hostAddress: InetAddress, private val commonPort: Int) {
     private var socket: Socket? = null
     private var serverSocket: ServerSocket? = null
-
+    private var isServer: Boolean = false;
     private var transmission: TransmissionTask? = null
     private var transmissionThread: Thread? = null
     private var reception: ReceptionTask? = null
     private var receptionThread: Thread? = null
 
-    public fun initiateConnection(isServer: Boolean)
+
+    public fun initiateConnection(isServer: Boolean) {
+        this.isServer = isServer;
+        if(isServer) {
+            Thread{ serverHandshake() }.start()
+        } else {
+            Thread{ clientHandshake() }.start()
+        }
+    }
+
+    public fun prepareSockets()
     {
         if (isServer) {
             socket = Socket()
             socket!!.reuseAddress = true
             socket!!.bind(null)
-            socket!!.connect(InetSocketAddress(hostAddress, 8989), 10000)
+            socket!!.connect(InetSocketAddress(hostAddress, commonPort), 10000)
         } else {
-            serverSocket = ServerSocket(8989)
+            serverSocket = ServerSocket(commonPort)
             socket = serverSocket!!.accept()
         }
 
-        transmission = TransmissionTask(context, hostAddress, commonPort, socket!!)
+        transmission = TransmissionTask(context, hostAddress!!, commonPort, socket!!)
         transmissionThread = Thread(transmission)
         reception = ReceptionTask(commonPort, socket!!)
         receptionThread = Thread(reception)
@@ -53,51 +63,41 @@ class NetworkImposter(private val activity: AppCompatActivity, val context: Cont
     }
 
 
-    class ServerHandshake(private val port: Int, private val receptor: (InetAddress) -> Unit, private val onTerminate: (Boolean) -> Unit) : AsyncTask<Void?, Void?, String?>()
-    {
-        protected override fun doInBackground(vararg p0: Void?): String? {
-            Log.d("HANDSHAKE","SERVER")
-            val serverSocket = ServerSocket(port)
-            val client = serverSocket.accept()
-            receptor(client.inetAddress)
-            serverSocket.close()
-            return "YIPEE"
-        }
 
-        protected override fun onPostExecute(result: String?) {
-            onTerminate(true)
-        }
+    fun serverHandshake() {
+        Log.d("HANDSHAKE","SERVER")
+        val serverSocket = ServerSocket(8998)
+        val client = serverSocket.accept()
+        this.hostAddress = client.inetAddress
+        serverSocket.close()
+        prepareSockets()
     }
 
-    class ClientHandshake(private val port: Int, private val hostAddress: InetAddress, private val onTerminate: (Boolean) -> Unit) : AsyncTask<Void?, Void?, String?>() {
-        protected override fun doInBackground(vararg p0: Void?): String? {
-            Log.d("HANDSHAKE","CLIENT")
 
-            while(true) {
-                try{
-                    Log.d(CL_TAG,"CTRY "+hostAddress);
-                    val socket = Socket()
-                    socket.reuseAddress = true
-                    socket.bind(null)
-                    socket.connect(InetSocketAddress(hostAddress, port), 10000)
-                    socket.close()
-                    break
-                }
-                catch (e: Exception)
-                {
-                    Log.d(CL_TAG,"CFAIl");
-                    Thread.sleep(250);
-                }
+    fun clientHandshake() {
+        Log.d("HANDSHAKE","CLIENT")
 
+        while(true) {
+            try{
+                Log.d(CL_TAG,"CTRY "+hostAddress);
+                val socket = Socket()
+                socket.reuseAddress = true
+                socket.bind(null)
+                socket.connect(InetSocketAddress(hostAddress, 8998), 10000)
+                socket.close()
+                break
+            }
+            catch (e: Exception)
+            {
+                Log.d(CL_TAG,"CFAIl");
+                Thread.sleep(250);
             }
 
-            return "YIPEE"
         }
 
-        protected override fun onPostExecute(result: String?) {
-            onTerminate(false)
-        }
+        prepareSockets()
     }
+
 
 
     class ReceptionTask(private val port: Int, private val socket: Socket) : Runnable {
@@ -106,24 +106,24 @@ class NetworkImposter(private val activity: AppCompatActivity, val context: Cont
             while (true) {
                 Log.d(S_TAG, "Audio receiver started.")
                 try {
-                    val buffer = ByteArray(NetworkSus.PACKET_SIZE)
+                    val buffer = ByteArray(NetworkImposter.PACKET_SIZE)
                     val inputStream = socket.getInputStream()
                     val audioPlayer = AudioTrack(
                         AudioManager.STREAM_SYSTEM,
                         8192,
                         AudioFormat.CHANNEL_OUT_MONO,
                         AudioFormat.ENCODING_PCM_16BIT,
-                        NetworkSus.PACKET_SIZE *10,
+                        NetworkImposter.PACKET_SIZE *10,
                         AudioTrack.MODE_STREAM
                     )
 
                     var bytesRead = 0
 
                     while (true) {
-                        var numberBytes = inputStream.read(buffer, bytesRead, NetworkSus.PACKET_SIZE - bytesRead)
+                        var numberBytes = inputStream.read(buffer, bytesRead, NetworkImposter.PACKET_SIZE - bytesRead)
                         if (numberBytes > 0) {
-                            if (bytesRead + numberBytes == NetworkSus.PACKET_SIZE) {
-                                audioPlayer!!.write(buffer, 0, NetworkSus.PACKET_SIZE)
+                            if (bytesRead + numberBytes == NetworkImposter.PACKET_SIZE) {
+                                audioPlayer!!.write(buffer, 0, NetworkImposter.PACKET_SIZE)
                                 bytesRead = 0
                                 numberBytes = 0
                                 audioPlayer!!.play()
@@ -145,7 +145,7 @@ class NetworkImposter(private val activity: AppCompatActivity, val context: Cont
             currentlyRecording = value
         }
 
-        private var buffer: ByteArray = ByteArray(NetworkSus.PACKET_SIZE)
+        private var buffer: ByteArray = ByteArray(NetworkImposter.PACKET_SIZE)
 
         override fun run() {
             Log.d(CL_TAG, "Attempting to begin transmission...")
@@ -165,7 +165,7 @@ class NetworkImposter(private val activity: AppCompatActivity, val context: Cont
                     8192,
                     AudioFormat.CHANNEL_IN_MONO,
                     AudioFormat.ENCODING_PCM_16BIT,
-                    NetworkSus.PACKET_SIZE
+                    NetworkImposter.PACKET_SIZE
                 )
 
                 audioRecorder!!.startRecording()
@@ -173,8 +173,8 @@ class NetworkImposter(private val activity: AppCompatActivity, val context: Cont
                 try {
                     while (true) {
                         if (currentlyRecording) {
-                            val amountToRead = NetworkSus.PACKET_SIZE
-                            audioRecorder!!.read(buffer, 0, NetworkSus.PACKET_SIZE)
+                            val amountToRead = NetworkImposter.PACKET_SIZE
+                            audioRecorder!!.read(buffer, 0, NetworkImposter.PACKET_SIZE)
                             outputStream.write(buffer)
                         }
                     }
@@ -192,5 +192,6 @@ class NetworkImposter(private val activity: AppCompatActivity, val context: Cont
     companion object {
         private const val CL_TAG = "CLTASK"
         private const val S_TAG = "S-TASK"
+        private const val PACKET_SIZE = 128;
     }
 }
