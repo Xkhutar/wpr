@@ -28,9 +28,15 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
 import android.util.Log
+import android.view.MotionEvent
+import android.view.View
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.Button
+import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.constraintlayout.widget.ConstraintSet.Motion
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import java.io.*
@@ -40,6 +46,8 @@ import java.util.concurrent.Callable
 
 
 class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, ConnectionInfoListener {
+
+    private var channelField: EditText? = null
 
     private var output: String? = null
     private var pushToggle: Boolean = true
@@ -71,11 +79,21 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
 
     public override fun onResume() {
         super.onResume()
-        receiver = WiFiDirectBroadcastReceiver(manager!!, channel!!, this::stfu, this)
+        receiver = WiFiDirectBroadcastReceiver(manager!!, channel!!,this)
         registerReceiver(receiver, intentFilter)
     }
 
-    public fun stfu(poop: String){}
+    fun EditText.onSubmit(func: () -> Unit) {
+        setOnEditorActionListener { _, actionId, _ ->
+
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                func()
+            }
+
+            true
+
+        }
+    }
 
     public override fun onPause() {
         super.onPause()
@@ -132,7 +150,15 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
         manager = getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
         channel = manager?.initialize(this, mainLooper, this)
 
+        channelField = findViewById<EditText>(R.id.realChannel)
 
+        channelField!!.onSubmit {
+            channelField!!.clearFocus()
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(channelField!!.windowToken, 0)
+            Log.d(TAG, "CAHNGE TO ${channelField!!.text.toString()}")
+            networkCrewmate?.setGroup(channelField!!.text.toString().toInt())
+        }
 
         var lmanager = getSystemService(LOCATION_SERVICE) as LocationManager
         if (!lmanager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
@@ -152,37 +178,28 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
 
 
         val pushToTalk = findViewById<Button>(R.id.push_to_talk)
-        pushToTalk.setOnClickListener {
+
+        pushToTalk.setOnTouchListener { _, event ->
+            when(event.action) {
+                MotionEvent.ACTION_DOWN -> networkCrewmate?.setRecording(true)
+                MotionEvent.ACTION_UP -> networkCrewmate?.setRecording(false)
+            }
+            true
+        }
+
+
+        val toggle = findViewById<Button>(R.id.toggle)
+        toggle.setOnClickListener {
             if (ContextCompat.checkSelfPermission(this,
                     Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED && ContextCompat.checkSelfPermission(this,
                     Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                 val permissions = arrayOf(android.Manifest.permission.RECORD_AUDIO, android.Manifest.permission.WRITE_EXTERNAL_STORAGE, android.Manifest.permission.READ_EXTERNAL_STORAGE)
                 ActivityCompat.requestPermissions(this, permissions,0)
             } else {
-                networkCrewmate!!.setRecording(pushToggle)
+                networkCrewmate?.setRecording(pushToggle)
 
                 pushToggle = !pushToggle
             }
-        }
-
-        val toggle = findViewById<Button>(R.id.toggle)
-        toggle.setOnClickListener {
-            //Toast.makeText(this, "Toggling audio input mode (TBC)", Toast.LENGTH_SHORT).show()
-            //Temporarily using this as a stop recording button
-            //stopRecording()
-        }
-
-        val changeChannel = findViewById<Button>(R.id.change_channel)
-        changeChannel.setOnClickListener {
-            manager!!.discoverPeers(channel, object : WifiP2pManager.ActionListener {
-                override fun onSuccess() {
-                    Toast.makeText(this@MainActivity, "Amongus", Toast.LENGTH_SHORT).show()
-                }
-
-                override fun onFailure(reasonCode: Int) {
-                    Toast.makeText(this@MainActivity, "Sussy... " + reasonCode, Toast.LENGTH_SHORT).show()
-                }
-            })
         }
 
 

@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.media.*
-import android.os.AsyncTask
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -25,9 +24,25 @@ class NetworkImposter(private val activity: AppCompatActivity, val context: Cont
 
     private var outputStreams = mutableListOf<OutputStream>()
 
+    private var commandClientThread: Thread? = null
+    private var commandServerThreads = mutableListOf<Thread>()
+    @Volatile private var peerGroups = mutableMapOf<OutputStream, Int>()
+    @Volatile private var myGroup = 0
+
+    @Volatile private var hasCommand = false
+    private var command = 0
+
     @Volatile private var currentlyRecording: Boolean = false
     private var buffer: ByteArray = ByteArray(NetworkImposter.PACKET_SIZE)
 
+    fun Int.getBytes() : ByteArray = byteArrayOf(toByte(), shr(8).toByte(), shr(16).toByte(), shr(24).toByte())
+
+
+    public fun setGroup(groupID: Int) {
+        myGroup = groupID
+        command = groupID
+        hasCommand = true
+    }
     public fun initiateConnection(isServer: Boolean) {
         this.isServer = isServer;
         if(isServer) {
@@ -45,12 +60,21 @@ class NetworkImposter(private val activity: AppCompatActivity, val context: Cont
             socket!!.reuseAddress = true
             socket!!.bind(null)
             socket!!.connect(InetSocketAddress(hostAddress, commonPort), 10000)
+
+            val commandServerThread = Thread { serverCommand(socket!!.getOutputStream()) }
+            commandServerThreads.add(commandServerThread)
+            commandServerThread.start()
         } else {
             serverSocket = ServerSocket(commonPort)
             socket = serverSocket!!.accept()
+
+            commandClientThread = Thread { clientCommand() }
+            commandClientThread!!.start()
         }
 
-        outputStreams.add(socket!!.getOutputStream())
+        val stream = socket!!.getOutputStream()
+        peerGroups[stream] = 0
+        outputStreams.add(stream)
 
         if (!hasTransmissionTask) {
             transmissionThread = Thread { transmissionTask() }
@@ -71,6 +95,46 @@ class NetworkImposter(private val activity: AppCompatActivity, val context: Cont
         currentlyRecording = value;
     }
 
+    fun serverCommand (stream: OutputStream) {
+        try {
+            Thread.sleep(1000)
+            val commandSocket = Socket()
+            commandSocket!!.reuseAddress = true
+            commandSocket!!.bind(null)
+            commandSocket!!.connect(InetSocketAddress(hostAddress, 9543), 10000)
+            Log.d(S_TAG, "ATTACHED SERVER COMMAND FROM $hostAddress")
+            val commandStream = DataInputStream(commandSocket.getInputStream())
+
+            while (true) {
+                val command = commandStream.readInt()
+                Log.d(S_TAG, "RECEIVED COMMAND: $command")
+                peerGroups[stream] = command
+
+                for (pair in peerGroups) {
+                    Log.d(S_TAG, "GROUPERS: ${pair.key}, ${pair.value}")
+                }
+            }
+        } catch (e: IOException) {
+            Log.e(S_TAG, (e.message)!!)
+        }
+    }
+    fun clientCommand() {
+        try {
+            val commandMedium = ServerSocket(9543)
+            val commandSocket = commandMedium.accept()
+            val commandStream = DataOutputStream(commandSocket.getOutputStream())
+            Log.d(S_TAG, "ATTACHED CLIENT COMMAND")
+            while (true) {
+                if (hasCommand) {
+                    hasCommand = false
+
+                    commandStream.writeInt(command)
+                }
+            }
+        } catch (e: IOException) {
+            Log.e(CL_TAG, (e.message)!!)
+        }
+    }
 
 
     fun serverHandshake() {
@@ -124,25 +188,34 @@ class NetworkImposter(private val activity: AppCompatActivity, val context: Cont
                     AudioTrack.MODE_STREAM
                 )
 
+
                 var bytesRead = 0
 
                 while (true) {
                     var numberBytes = inputStream.read(buffer, bytesRead, NetworkImposter.PACKET_SIZE - bytesRead)
+                    val thisStream = socket.getOutputStream()
+                    val thisGroup = peerGroups[thisStream]
+
                     if (numberBytes > 0) {
                         if (bytesRead + numberBytes == NetworkImposter.PACKET_SIZE) {
-                            audioPlayer!!.write(buffer, 0, NetworkImposter.PACKET_SIZE)
-                            val myStream = socket.getOutputStream()
+
 
                             if(isServer) {
                                 for (stream in outputStreams) {
-                                    if (stream != myStream)
+                                    if (stream != thisStream && peerGroups[stream] == thisGroup)
                                         stream.write(buffer)
                                 }
+                                //Log.d(S_TAG, "THEM: $thisGroup | ME: $myGroup")
+                            }
+
+
+                            if (!isServer || thisGroup == myGroup) {
+                                audioPlayer!!.write(buffer, 0, NetworkImposter.PACKET_SIZE)
+                                audioPlayer!!.play()
                             }
 
                             bytesRead = 0
                             numberBytes = 0
-                            audioPlayer!!.play()
                         }
 
                         bytesRead += numberBytes
@@ -178,7 +251,10 @@ class NetworkImposter(private val activity: AppCompatActivity, val context: Cont
                     if (currentlyRecording) {
                         val amountToRead = NetworkImposter.PACKET_SIZE
                         audioRecorder!!.read(buffer, 0, NetworkImposter.PACKET_SIZE)
-                        for (stream in outputStreams) stream.write(buffer)
+                        for (stream in outputStreams) {
+                            if (!isServer || peerGroups[stream] == myGroup)
+                                stream.write(buffer)
+                        }
                     }
                 }
             }

@@ -12,29 +12,15 @@
         android:id="@+id/toggle"
         android:layout_width="100dp"
         android:layout_height="100dp"
-        android:layout_marginTop="332dp"
-        android:layout_marginEnd="28dp"
+        android:layout_marginTop="20dp"
         android:backgroundTint="#3F51B5"
         android:text="Hands Free"
         android:textColor="#FBFBFB"
         app:cornerRadius="50dp"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/channelID" />
-
-    <Button
-        android:id="@+id/change_channel"
-        android:layout_width="100dp"
-        android:layout_height="100dp"
-        android:layout_marginStart="28dp"
-        android:layout_marginTop="332dp"
-        android:backgroundTint="#00BCD4"
-        android:text="Change Channel"
-        android:textColor="#F8F5F5"
-        android:textSize="12sp"
-        app:cornerRadius="50dp"
-        app:iconTint="#5E5B5B"
+        app:layout_constraintHorizontal_bias="0.498"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/channelID" />
+        app:layout_constraintTop_toBottomOf="@+id/push_to_talk" />
 
     <Button
         android:id="@+id/push_to_talk"
@@ -75,15 +61,15 @@
 
     <TextView
         android:id="@+id/channelID"
-        android:layout_width="360dp"
-        android:layout_height="80dp"
+        android:layout_width="349dp"
+        android:layout_height="46dp"
         android:layout_marginTop="4dp"
         android:background="@android:drawable/editbox_dropdown_dark_frame"
         android:backgroundTint="#000000"
         android:ems="10"
         android:gravity="center"
         android:minHeight="48dp"
-        android:text="Channel: 0"
+        android:text="Channel:"
         android:textColor="#FFFFFF"
         android:textSize="35dp"
         android:visibility="visible"
@@ -91,5 +77,21 @@
         app:layout_constraintHorizontal_bias="0.49"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/banner" />
+
+    <EditText
+        android:id="@+id/realChannel"
+        android:layout_width="322dp"
+        android:layout_height="48dp"
+        android:layout_marginTop="24dp"
+        android:ems="10"
+        android:inputType="number"
+        android:text="0"
+        android:textAlignment="center"
+        android:textColor="#FFFFFF"
+        android:textSize="25dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.492"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/channelID" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
