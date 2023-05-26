@@ -15,14 +15,18 @@ import java.net.ServerSocket
 import java.net.Socket
 
 class NetworkImposter(private val activity: AppCompatActivity, val context: Context, var hostAddress: InetAddress, private val commonPort: Int) {
-    private var socket: Socket? = null
+    //private var socket: Socket? = null
     private var serverSocket: ServerSocket? = null
     private var isServer: Boolean = false;
-    private var transmission: TransmissionTask? = null
-    private var transmissionThread: Thread? = null
-    private var reception: ReceptionTask? = null
-    private var receptionThread: Thread? = null
+    private var hasTransmissionTask = false;
 
+    private var transmissionThread: Thread? = null
+    private var receptionThreads = mutableListOf<Thread>()
+
+    private var outputStreams = mutableListOf<OutputStream>()
+
+    @Volatile private var currentlyRecording: Boolean = false
+    private var buffer: ByteArray = ByteArray(NetworkImposter.PACKET_SIZE)
 
     public fun initiateConnection(isServer: Boolean) {
         this.isServer = isServer;
@@ -35,6 +39,7 @@ class NetworkImposter(private val activity: AppCompatActivity, val context: Cont
 
     public fun prepareSockets()
     {
+        var socket: Socket? = null;
         if (isServer) {
             socket = Socket()
             socket!!.reuseAddress = true
@@ -45,21 +50,25 @@ class NetworkImposter(private val activity: AppCompatActivity, val context: Cont
             socket = serverSocket!!.accept()
         }
 
-        transmission = TransmissionTask(context, hostAddress!!, commonPort, socket!!)
-        transmissionThread = Thread(transmission)
-        reception = ReceptionTask(commonPort, socket!!)
-        receptionThread = Thread(reception)
+        outputStreams.add(socket!!.getOutputStream())
 
-        transmissionThread!!.priority = 10
-        transmissionThread!!.start()
+        if (!hasTransmissionTask) {
+            transmissionThread = Thread { transmissionTask() }
+            transmissionThread!!.priority = 10
+            transmissionThread!!.start()
+            hasTransmissionTask = true
+        }
+
         Thread.sleep(1000)
 
+        val receptionThread = Thread { receptionTask(socket) }
         receptionThread!!.priority = 9
+        receptionThreads.add(receptionThread)
         receptionThread!!.start()
     }
 
-    public fun setRecording(value: Boolean) {
-        transmission!!.setRecording(value)
+    fun setRecording(value: Boolean) {
+        currentlyRecording = value;
     }
 
 
@@ -100,92 +109,85 @@ class NetworkImposter(private val activity: AppCompatActivity, val context: Cont
 
 
 
-    class ReceptionTask(private val port: Int, private val socket: Socket) : Runnable {
+    fun receptionTask(socket: Socket) {
+        while (true) {
+            Log.d(S_TAG, "Audio receiver started.")
+            try {
+                val buffer = ByteArray(NetworkImposter.PACKET_SIZE)
+                val inputStream = socket.getInputStream()
+                val audioPlayer = AudioTrack(
+                    AudioManager.STREAM_SYSTEM,
+                    8192,
+                    AudioFormat.CHANNEL_OUT_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT,
+                    NetworkImposter.PACKET_SIZE *10,
+                    AudioTrack.MODE_STREAM
+                )
 
-        override fun run() {
-            while (true) {
-                Log.d(S_TAG, "Audio receiver started.")
-                try {
-                    val buffer = ByteArray(NetworkImposter.PACKET_SIZE)
-                    val inputStream = socket.getInputStream()
-                    val audioPlayer = AudioTrack(
-                        AudioManager.STREAM_SYSTEM,
-                        8192,
-                        AudioFormat.CHANNEL_OUT_MONO,
-                        AudioFormat.ENCODING_PCM_16BIT,
-                        NetworkImposter.PACKET_SIZE *10,
-                        AudioTrack.MODE_STREAM
-                    )
+                var bytesRead = 0
 
-                    var bytesRead = 0
+                while (true) {
+                    var numberBytes = inputStream.read(buffer, bytesRead, NetworkImposter.PACKET_SIZE - bytesRead)
+                    if (numberBytes > 0) {
+                        if (bytesRead + numberBytes == NetworkImposter.PACKET_SIZE) {
+                            audioPlayer!!.write(buffer, 0, NetworkImposter.PACKET_SIZE)
+                            val myStream = socket.getOutputStream()
 
-                    while (true) {
-                        var numberBytes = inputStream.read(buffer, bytesRead, NetworkImposter.PACKET_SIZE - bytesRead)
-                        if (numberBytes > 0) {
-                            if (bytesRead + numberBytes == NetworkImposter.PACKET_SIZE) {
-                                audioPlayer!!.write(buffer, 0, NetworkImposter.PACKET_SIZE)
-                                bytesRead = 0
-                                numberBytes = 0
-                                audioPlayer!!.play()
+                            if(isServer) {
+                                for (stream in outputStreams) {
+                                    if (stream != myStream)
+                                        stream.write(buffer)
+                                }
                             }
 
-                            bytesRead += numberBytes
+                            bytesRead = 0
+                            numberBytes = 0
+                            audioPlayer!!.play()
                         }
+
+                        bytesRead += numberBytes
                     }
-                } catch (e: IOException) {
-                    Log.e(S_TAG, (e.message)!!)
                 }
+            } catch (e: IOException) {
+                Log.e(S_TAG, (e.message)!!)
             }
         }
     }
 
-    class TransmissionTask(private val context: Context, private val hostAddress: InetAddress, private val commonPort: Int, private val socket: Socket) : Runnable {
-        @Volatile private var currentlyRecording: Boolean = false
-        public fun setRecording(value: Boolean) {
-            currentlyRecording = value
-        }
 
-        private var buffer: ByteArray = ByteArray(NetworkImposter.PACKET_SIZE)
+    fun transmissionTask() {
+        Log.d(CL_TAG, "Attempting to begin transmission...")
 
-        override fun run() {
-            Log.d(CL_TAG, "Attempting to begin transmission...")
+        try {
+            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                return
+            }
+
+            val audioRecorder = AudioRecord(
+                MediaRecorder.AudioSource.MIC,
+                8192,
+                AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT,
+                NetworkImposter.PACKET_SIZE
+            )
+
+            audioRecorder!!.startRecording()
 
             try {
-                Log.d("", "Opening client socket - "+hostAddress.toString() +":"+commonPort)
-
-                Log.d(CL_TAG, "Client socket - " + socket!!.isConnected)
-                val outputStream = socket!!.getOutputStream()
-
-                if (ActivityCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                    return
-                }
-
-                val audioRecorder = AudioRecord(
-                    MediaRecorder.AudioSource.MIC,
-                    8192,
-                    AudioFormat.CHANNEL_IN_MONO,
-                    AudioFormat.ENCODING_PCM_16BIT,
-                    NetworkImposter.PACKET_SIZE
-                )
-
-                audioRecorder!!.startRecording()
-
-                try {
-                    while (true) {
-                        if (currentlyRecording) {
-                            val amountToRead = NetworkImposter.PACKET_SIZE
-                            audioRecorder!!.read(buffer, 0, NetworkImposter.PACKET_SIZE)
-                            outputStream.write(buffer)
-                        }
+                while (true) {
+                    if (currentlyRecording) {
+                        val amountToRead = NetworkImposter.PACKET_SIZE
+                        audioRecorder!!.read(buffer, 0, NetworkImposter.PACKET_SIZE)
+                        for (stream in outputStreams) stream.write(buffer)
                     }
                 }
-                catch (exception: Exception) {
-                    exception.printStackTrace()
-                }
-
-            } catch (e: IOException) {
-                Log.e(CL_TAG, e.stackTraceToString())
             }
+            catch (exception: Exception) {
+                exception.printStackTrace()
+            }
+
+        } catch (e: IOException) {
+            Log.e(CL_TAG, e.stackTraceToString())
         }
     }
 

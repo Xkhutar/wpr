@@ -16,6 +16,7 @@ import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaRecorder
+import android.net.Network
 import android.net.Uri
 import android.net.wifi.WpsInfo
 import android.net.wifi.p2p.*
@@ -41,7 +42,7 @@ import java.util.concurrent.Callable
 class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, ConnectionInfoListener {
 
     private var output: String? = null
-    private var pushToggle: Boolean = false
+    private var pushToggle: Boolean = true
 
     // END NEW AUDIO STUFF
 
@@ -53,7 +54,7 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
     private var currentPeers = mutableListOf<WifiP2pDevice>()
 
     // END NEW CONNECTION
-    private var networkCrewmates = mutableListOf<NetworkImposter>()
+    private var networkCrewmate: NetworkImposter? = null
 
     private val intentFilter = IntentFilter().apply {
         addAction(WIFI_P2P_STATE_CHANGED_ACTION)
@@ -158,7 +159,7 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
                 val permissions = arrayOf(android.Manifest.permission.RECORD_AUDIO, android.Manifest.permission.WRITE_EXTERNAL_STORAGE, android.Manifest.permission.READ_EXTERNAL_STORAGE)
                 ActivityCompat.requestPermissions(this, permissions,0)
             } else {
-                for (crewmate in networkCrewmates) crewmate?.setRecording(pushToggle)
+                networkCrewmate!!.setRecording(pushToggle)
 
                 pushToggle = !pushToggle
             }
@@ -184,12 +185,13 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
             })
         }
 
+
     }
 
     companion object {
         private const val TAG = "wpr"
     }
-    
+
     private fun connectValidPeers()
     {
         for (device in peers) {
@@ -250,9 +252,10 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
         if (info!!.groupFormed) {
             Log.d("BIGBOY", "HUGE STARTING!!!")
             Log.d("SUPER", "I AM " + (if (info!!.isGroupOwner) "SERVER" else "CLIENT"))
-            val crewmate = NetworkImposter(this, this@MainActivity, info!!.groupOwnerAddress,8989)
-            networkCrewmates.add(crewmate);
-            crewmate!!.initiateConnection(info!!.isGroupOwner)
+            if(networkCrewmate == null)
+                networkCrewmate = NetworkImposter(this, this@MainActivity, info!!.groupOwnerAddress,8989)
+
+            networkCrewmate!!.initiateConnection(info!!.isGroupOwner)
         }
     }
 }
