@@ -1,6 +1,3 @@
-
-//note: this version uses the toggle button to stop audio recording, and the change channel button to play it back.
-
 package com.example.bprac
 
 import android.Manifest
@@ -46,13 +43,10 @@ import java.util.concurrent.Callable
 
 
 class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, ConnectionInfoListener {
-
     private var channelField: EditText? = null
 
     private var output: String? = null
     private var pushToggle: Boolean = true
-
-    // END NEW AUDIO STUFF
 
     private var manager: WifiP2pManager? = null
     private var isWifiP2pEnabled = false
@@ -62,7 +56,6 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
     private var currentPeers = mutableListOf<WifiP2pDevice>()
     private var deviceName: String = ""
 
-    // END NEW CONNECTION
     private var networkCrewmate: NetworkImposter? = null
 
     private val intentFilter = IntentFilter().apply {
@@ -96,7 +89,6 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
             }
 
             true
-
         }
     }
 
@@ -117,16 +109,13 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
         }
     }
 
-
-
-    @SuppressLint("MissingInflatedId") //cant remember what this is
-    @Override //not sure why i needed this either
+    @SuppressLint("MissingInflatedId")
+    @Override
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
 
-        // leaving this in to try to get Rory phone to work, currently the recording isn't working for him (setAudioSource issue)
         if(ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(
                 this,
@@ -161,7 +150,6 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
             channelField!!.clearFocus()
             val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.hideSoftInputFromWindow(channelField!!.windowToken, 0)
-            Log.d(TAG, "CAHNGE TO ${channelField!!.text.toString()}")
             networkCrewmate?.setGroup(channelField!!.text.toString().toInt())
         }
 
@@ -217,17 +205,12 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
     private fun connectValidPeers()
     {
         val groupOwner = (deviceName == "WPR")
-        Log.d(TAG, "MY NAME "+deviceName)
 
         Toast.makeText(this, "I AM  ${(if (groupOwner) "OWNER" else "JOINER")}", Toast.LENGTH_LONG).show()
 
         for (device in peers) {
-            Log.d("PEER:", "Pogtential->"+device.deviceName)
-
             if (((groupOwner && device.deviceName.contains("WPR") || (!groupOwner && device.deviceName == "WPR"))) && currentPeers.none { peer -> peer.deviceName == device.deviceName }) {
                 currentPeers.add(device);
-                Log.d("PEER:", "Found peer!!! -> "+device.deviceName)
-
 
                 val config = WifiP2pConfig()
                 if (groupOwner)
@@ -238,19 +221,18 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
                 config.deviceAddress = device.deviceAddress
                 config.wps.setup = WpsInfo.PBC
                 channel?.also { channel ->
-                    Log.d("PEER", "GETTING OWNED?")
                     if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                         return
                     }
-                    Log.d("PEER", "ATTEMPTED CONNECTION TO "+device.deviceName)
+
                     manager?.connect(channel, config, object : ActionListener {
 
                         override fun onSuccess() {
-                            Log.d("PEER:", "Connected to "+device.deviceName+"!")
+                            Log.d("PEER:", "Connected to ${device.deviceName}!")
                         }
 
                         override fun onFailure(reason: Int) {
-                            Log.d("PEER:", "Could not sus... "+reason)
+                            Log.d("PEER:", "Could not connect... ($reason)")
                             if (ActivityCompat.checkSelfPermission(this@MainActivity, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                                 return
                             }
@@ -261,7 +243,7 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
                                 }
 
                                 override fun onFailure(reason: Int) {
-                                    Log.d("PEER:", "Could not sus... "+reason)
+                                    Log.d("PEER:", "Could not connect... ($reason)")
                                 }
                             })
                         }
@@ -278,12 +260,7 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
 
 
     override fun onConnectionInfoAvailable(info: WifiP2pInfo?) {
-        Log.d("CONNECT", "GOT INFO")
-        Log.d("CONNECT", "GFORM? "+info!!.groupFormed+" ZIMBA? "+info!!.groupOwnerAddress)
-
         if (info!!.groupFormed) {
-            Log.d("BIGBOY", "HUGE STARTING!!!")
-            Log.d("SUPER", "I AM " + (if (info!!.isGroupOwner) "SERVER" else "CLIENT"))
             Toast.makeText(this, "I AM  ${(if (info!!.isGroupOwner) "SERVER" else "CLIENT")}", Toast.LENGTH_LONG).show()
             if(networkCrewmate == null)
                 networkCrewmate = NetworkImposter(this, this@MainActivity, info!!.groupOwnerAddress,8989)

@@ -14,7 +14,7 @@ import java.net.ServerSocket
 import java.net.Socket
 
 class NetworkImposter(private val activity: AppCompatActivity, val context: Context, var hostAddress: InetAddress, private val commonPort: Int) {
-    //private var socket: Socket? = null
+
     private var serverSocket: ServerSocket? = null
     private var isServer: Boolean = false;
     private var hasTransmissionTask = false;
@@ -34,8 +34,6 @@ class NetworkImposter(private val activity: AppCompatActivity, val context: Cont
 
     @Volatile private var currentlyRecording: Boolean = false
     private var buffer: ByteArray = ByteArray(NetworkImposter.PACKET_SIZE)
-
-    fun Int.getBytes() : ByteArray = byteArrayOf(toByte(), shr(8).toByte(), shr(16).toByte(), shr(24).toByte())
 
 
     public fun setGroup(groupID: Int) {
@@ -109,10 +107,6 @@ class NetworkImposter(private val activity: AppCompatActivity, val context: Cont
                 val command = commandStream.readInt()
                 Log.d(S_TAG, "RECEIVED COMMAND: $command")
                 peerGroups[stream] = command
-
-                for (pair in peerGroups) {
-                    Log.d(S_TAG, "GROUPERS: ${pair.key}, ${pair.value}")
-                }
             }
         } catch (e: IOException) {
             Log.e(S_TAG, (e.message)!!)
@@ -152,7 +146,6 @@ class NetworkImposter(private val activity: AppCompatActivity, val context: Cont
 
         while(true) {
             try{
-                Log.d(CL_TAG,"CTRY "+hostAddress);
                 val socket = Socket()
                 socket.reuseAddress = true
                 socket.bind(null)
@@ -165,7 +158,6 @@ class NetworkImposter(private val activity: AppCompatActivity, val context: Cont
                 Log.d(CL_TAG,"CFAIl");
                 Thread.sleep(250);
             }
-
         }
 
         prepareSockets()
@@ -192,25 +184,22 @@ class NetworkImposter(private val activity: AppCompatActivity, val context: Cont
                 var bytesRead = 0
 
                 while (true) {
-                    var numberBytes = inputStream.read(buffer, bytesRead, NetworkImposter.PACKET_SIZE - bytesRead)
+                    var numberBytes = inputStream.read(buffer, bytesRead, PACKET_SIZE - bytesRead)
                     val thisStream = socket.getOutputStream()
                     val thisGroup = peerGroups[thisStream]
 
                     if (numberBytes > 0) {
-                        if (bytesRead + numberBytes == NetworkImposter.PACKET_SIZE) {
-
+                        if (bytesRead + numberBytes == PACKET_SIZE) {
 
                             if(isServer) {
                                 for (stream in outputStreams) {
                                     if (stream != thisStream && peerGroups[stream] == thisGroup)
                                         stream.write(buffer)
                                 }
-                                //Log.d(S_TAG, "THEM: $thisGroup | ME: $myGroup")
                             }
 
-
                             if (!isServer || thisGroup == myGroup) {
-                                audioPlayer!!.write(buffer, 0, NetworkImposter.PACKET_SIZE)
+                                audioPlayer!!.write(buffer, 0, PACKET_SIZE)
                                 audioPlayer!!.play()
                             }
 
@@ -249,8 +238,7 @@ class NetworkImposter(private val activity: AppCompatActivity, val context: Cont
             try {
                 while (true) {
                     if (currentlyRecording) {
-                        val amountToRead = NetworkImposter.PACKET_SIZE
-                        audioRecorder!!.read(buffer, 0, NetworkImposter.PACKET_SIZE)
+                        audioRecorder!!.read(buffer, 0, PACKET_SIZE)
                         for (stream in outputStreams) {
                             if (!isServer || peerGroups[stream] == myGroup)
                                 stream.write(buffer)
