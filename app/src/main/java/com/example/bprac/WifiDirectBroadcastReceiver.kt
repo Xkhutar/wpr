@@ -32,11 +32,12 @@ import android.util.Log
 import androidx.core.app.ActivityCompat
 
 
-class WiFiDirectBroadcastReceiver(manager: WifiP2pManager, channel: Channel, activity: MainActivity) : BroadcastReceiver() {
+class WiFiDirectBroadcastReceiver(manager: WifiP2pManager, channel: Channel, activity: MainActivity, receptacle: (String) -> Unit) : BroadcastReceiver() {
     private var manager: WifiP2pManager? = null
     private var channel: WifiP2pManager.Channel? = null
     private var activity: MainActivity? = null
     public  var device: WifiP2pDevice? = null
+    private var receptacle: (String) -> Unit
 
     /**
      * @param manager WifiP2pManager system service
@@ -48,6 +49,7 @@ class WiFiDirectBroadcastReceiver(manager: WifiP2pManager, channel: Channel, act
         this.manager = manager
         this.channel = channel
         this.activity = activity
+        this.receptacle = receptacle
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -76,6 +78,7 @@ class WiFiDirectBroadcastReceiver(manager: WifiP2pManager, channel: Channel, act
         } else if (WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION == action) {
             device = intent.getParcelableExtra(EXTRA_WIFI_P2P_DEVICE)!!
             Log.d("NAME", "MY NAME IS " + device!!.deviceName)
+            receptacle(device!!.deviceName)
         } else if (WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION == action) {
             manager!!.requestConnectionInfo(channel!!, activity!!)
         }

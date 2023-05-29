@@ -60,6 +60,7 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
 
     private val peers = mutableListOf<WifiP2pDevice>()
     private var currentPeers = mutableListOf<WifiP2pDevice>()
+    private var deviceName: String = ""
 
     // END NEW CONNECTION
     private var networkCrewmate: NetworkImposter? = null
@@ -77,9 +78,13 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
         this.isWifiP2pEnabled = isWifiP2pEnabled
     }
 
+    fun setName(name: String) {
+        deviceName = name
+    }
+
     public override fun onResume() {
         super.onResume()
-        receiver = WiFiDirectBroadcastReceiver(manager!!, channel!!,this)
+        receiver = WiFiDirectBroadcastReceiver(manager!!, channel!!,this, ::setName)
         registerReceiver(receiver, intentFilter)
     }
 
@@ -211,15 +216,25 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
 
     private fun connectValidPeers()
     {
+        val groupOwner = (deviceName == "WPR")
+        Log.d(TAG, "MY NAME "+deviceName)
+
+        Toast.makeText(this, "I AM  ${(if (groupOwner) "OWNER" else "JOINER")}", Toast.LENGTH_LONG).show()
+
         for (device in peers) {
-            Log.d("PEER:", "Pogtential->"+device.deviceName);
-            if (device.deviceName.contains("piss") && currentPeers.none { peer -> peer.deviceName == device.deviceName }) {
+            Log.d("PEER:", "Pogtential->"+device.deviceName)
+
+            if (((groupOwner && device.deviceName.contains("WPR") || (!groupOwner && device.deviceName == "WPR"))) && currentPeers.none { peer -> peer.deviceName == device.deviceName }) {
                 currentPeers.add(device);
                 Log.d("PEER:", "Found peer!!! -> "+device.deviceName)
 
 
                 val config = WifiP2pConfig()
-                config.groupOwnerIntent = 0
+                if (groupOwner)
+                    config.groupOwnerIntent = 15
+                else
+                    config.groupOwnerIntent = 0
+
                 config.deviceAddress = device.deviceAddress
                 config.wps.setup = WpsInfo.PBC
                 channel?.also { channel ->
@@ -269,6 +284,7 @@ class MainActivity : AppCompatActivity(), ChannelListener, PeerListListener, Con
         if (info!!.groupFormed) {
             Log.d("BIGBOY", "HUGE STARTING!!!")
             Log.d("SUPER", "I AM " + (if (info!!.isGroupOwner) "SERVER" else "CLIENT"))
+            Toast.makeText(this, "I AM  ${(if (info!!.isGroupOwner) "SERVER" else "CLIENT")}", Toast.LENGTH_LONG).show()
             if(networkCrewmate == null)
                 networkCrewmate = NetworkImposter(this, this@MainActivity, info!!.groupOwnerAddress,8989)
 
